@@ -19,21 +19,24 @@ function isValidHttpUrl(value: string | undefined): value is string {
 }
 
 /**
- * Singleton Supabase client instance.
+ * Browser Supabase client.
+ *
+ * - `persistSession` keeps the user signed in across reloads (localStorage).
+ * - `autoRefreshToken` refreshes the access token in the background.
+ * - `detectSessionInUrl` completes email-confirmation and OAuth redirects.
  *
  * `null` when the environment variables are missing or still placeholders —
  * check `isSupabaseConfigured` (or `supabase === null`) before using it.
  */
 export const supabase: SupabaseClient | null =
   isValidHttpUrl(supabaseUrl) && supabasePublishableKey
-    ? createClient(supabaseUrl, supabasePublishableKey)
+    ? createClient(supabaseUrl, supabasePublishableKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      })
     : null;
 
 export const isSupabaseConfigured: boolean = supabase !== null;
-
-/** Row shape of the `tests` table created by the initial migration. */
-export type TestRow = {
-  id: number;
-  message: string;
-  created_at: string;
-};

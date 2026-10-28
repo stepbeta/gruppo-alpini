@@ -18,15 +18,19 @@ A unified, production-ready **Next.js (App Router)** repository integrated with 
 ```txt
 gruppo-alpini/
 ├── app/
-│   ├── layout.tsx       # Root layout: HTML shell, fonts, global styles, metadata
-│   ├── page.tsx         # Landing page — server-rendered Supabase connection test
+│   ├── layout.tsx       # Root layout: HTML shell, fonts, global styles, AuthProvider
+│   ├── page.tsx         # Landing page (authenticated members)
+│   ├── login/           # Google OAuth + email/password login
+│   ├── profile/         # Member profile: view and update personal data
 │   └── globals.css      # Tailwind & global styles
+├── components/          # Shared UI: auth provider/guard, header, icons, loading states
 ├── lib/
-│   └── supabase.ts      # Initialized singleton Supabase client
+│   ├── supabase.ts      # Initialized singleton browser Supabase client
+│   ├── profile.ts       # Profile types and read/upsert helpers
+│   └── display.ts       # Display-name and initials helpers
 ├── supabase/
 │   ├── config.toml      # Local Supabase stack configuration (CLI)
-│   └── migrations/
-│       └── 20261020000000_create_tests_table.sql
+│   └── migrations/      # Version-controlled SQL migrations
 ├── .vscode/
 │   └── launch.json      # Run & debug configs (server, client, full stack)
 ├── .env.local           # Local environment variables (git-ignored)
@@ -54,13 +58,31 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your-publishable-key>
 Both values are available in the Supabase dashboard under the **Connect** panel (or **Project Settings → API Keys**).
 Until they are set, the homepage gracefully displays a "not configured" message instead of crashing.
 
-### 3. Run the development server
+### 3. Configure authentication
+
+In the Supabase dashboard:
+
+1. **Authentication → Providers → Email** is enabled by default. You can keep
+   email confirmation on or off; the login page handles both cases.
+2. **Authentication → Providers → Google**: add the OAuth Client ID and Client
+   Secret from Google Cloud Console.
+3. **Authentication → URL Configuration**: set the Site URL and add the app
+   origins to **Redirect URLs**:
+   - `http://localhost:3000`
+   - `https://<your-production-domain>`
+
+The app redirects OAuth and email-confirmation links back to the site origin;
+Supabase must allow that origin or the redirect is rejected.
+
+### 4. Run the development server
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) — the page queries the `tests` table and shows the message stored in the database.
+Open [http://localhost:3000](http://localhost:3000). Unauthenticated visitors are
+redirected to the login page. After signing in, the landing page shows the
+member area and a link to `/profile`.
 
 ---
 
@@ -151,7 +173,7 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 
 ## Troubleshooting
 
-- **Page shows "Environment variables not configured"** — `.env.local` is missing or still contains placeholders. Fill it in and restart `npm run dev`.
-- **Page shows "Query failed"** — the database is reachable but the `tests` table is missing: run `npm run db:push`.
-- **Page shows "table is empty"** — apply the initial migration to seed the sample row.
+- **Page shows "Configurazione Supabase mancante"** — `.env.local` is missing or still contains placeholders. Fill it in and restart `npm run dev`.
+- **Google login says the provider is not enabled** — enable the Google provider in the Supabase dashboard and configure the redirect URLs (see above).
+- **Profile page returns "permission denied" (42501)** — the Phase 1B grants are missing. Apply the migrations with `npm run db:push`.
 - **CLI cannot link** — make sure you passed the project ref: `npx supabase link --project-ref <REF_ID>` (see the dashboard URL).
