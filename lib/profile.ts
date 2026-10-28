@@ -17,12 +17,47 @@ export type ProfileUpdate = {
   service_place: string | null;
 };
 
-const PROFILE_COLUMNS =
+/** Profile fields shown in the member directory. */
+export type Member = Pick<
+  Profile,
+  | "id"
+  | "full_name"
+  | "birth_date"
+  | "enlistment_year"
+  | "service_place"
+  | "is_admin"
+>;
+
+export const PROFILE_COLUMNS =
   "id, full_name, birth_date, enlistment_year, service_place, is_admin, updated_at";
+
+export const MEMBER_COLUMNS =
+  "id, full_name, birth_date, enlistment_year, service_place, is_admin";
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return "Errore di rete. Controlla la connessione e riprova.";
+}
+
+/** Turns the most common Supabase/PostgREST errors into Italian messages. */
+export function formatProfileError(message: string): string {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("permission denied") ||
+    normalized.includes("42501") ||
+    normalized.includes("row-level security")
+  ) {
+    return "Non hai i permessi per modificare questo profilo. Verifica che le migrazioni Supabase siano state applicate al database.";
+  }
+  if (normalized.includes("duplicate key")) {
+    return "Esiste già una scheda collegata a questo account.";
+  }
+  if (normalized.includes("invalid input syntax")) {
+    return "Uno dei valori inseriti non è valido. Controlla i campi e riprova.";
+  }
+
+  return message;
 }
 
 export async function fetchProfile(
@@ -84,5 +119,69 @@ export async function saveProfile(
     return { profile: data as Profile, error: null };
   } catch (error) {
     return { profile: null, error: errorMessage(error) };
+  }
+}
+
+/**
+ * Reads every member profile for the authenticated directory.
+ *
+ * The Phase 1B RLS policy allows any authenticated member to select all rows.
+ */
+export async function fetchMembers(): Promise<{
+  members: Member[];
+  error: string | null;
+}> {
+  if (!supabase) {
+    return { members: [], error: "Supabase non configurato." };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(MEMBER_COLUMNS)
+      .order("full_name", { ascending: true, nullsFirst: false });
+
+    if (error) {
+      return { members: [], error: error.message };
+    }
+
+    return { members: (data as Member[] | null) ?? [], error: null };
+  } catch (error) {
+    return { members: [], error: errorMessage(error) };
+  }
+}
+
+/**
+ * Updates another member's profile.
+ *
+ * Only administrators pass the Phase 1C RLS policy; non-admins can only update
+ * their own row through `saveProfile`. The form never sends `is_admin`.
+ */
+export async function updateMemberProfile(
+  memberId: string,
+  values: ProfileUpdate,
+): Promise<{ member: Member | null; error: string | null }> {
+  if (!supabase) {
+    return { member: null, error: "Supabase non configurato." };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        ...values,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", memberId)
+      .select(MEMBER_COLUMNS)
+      .single();
+
+    if (error) {
+      return { member: null, error: error.message };
+    }
+
+    return { member: data as Member, error: null };
+  } catch (error) {
+    return { member: null, error: errorMessage(error) };
   }
 }

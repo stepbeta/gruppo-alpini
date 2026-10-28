@@ -65,6 +65,32 @@ export function UsersIcon({ className }: IconProps) {
   );
 }
 
+export function SearchIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-4.2-4.2" />
+    </IconBase>
+  );
+}
+
+export function PencilIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+      <path d="m13.5 6.5 3 3" />
+    </IconBase>
+  );
+}
+
+export function XIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="m6 6 12 12M18 6 6 18" />
+    </IconBase>
+  );
+}
+
 export function CalendarIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>

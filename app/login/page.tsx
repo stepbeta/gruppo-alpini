@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/components/auth-provider";
@@ -429,9 +430,15 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <p className="mt-6 text-center text-xs text-zinc-500 dark:text-zinc-500">
-          Accesso riservato ai soci del Gruppo Alpini.
-        </p>
+        <footer className="mt-6 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-xs text-zinc-500 dark:text-zinc-500">
+          <p>Accesso riservato ai soci del Gruppo Alpini.</p>
+          <Link
+            className="rounded font-medium transition-colors hover:text-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:hover:text-emerald-400"
+            href="/privacy"
+          >
+            Privacy
+          </Link>
+        </footer>
       </div>
     </main>
   );

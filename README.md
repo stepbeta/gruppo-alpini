@@ -22,11 +22,13 @@ gruppo-alpini/
 │   ├── page.tsx         # Landing page (authenticated members)
 │   ├── login/           # Google OAuth + email/password login
 │   ├── profile/         # Member profile: view and update personal data
+│   ├── iscritti/        # Member directory + admin profile editing
+│   ├── privacy/         # Public privacy policy (plain Italian)
 │   └── globals.css      # Tailwind & global styles
-├── components/          # Shared UI: auth provider/guard, header, icons, loading states
+├── components/          # Shared UI: auth provider/guard, header, footer, icons, loading states
 ├── lib/
 │   ├── supabase.ts      # Initialized singleton browser Supabase client
-│   ├── profile.ts       # Profile types and read/upsert helpers
+│   ├── profile.ts       # Profile types and read/upsert/admin-update helpers
 │   └── display.ts       # Display-name and initials helpers
 ├── supabase/
 │   ├── config.toml      # Local Supabase stack configuration (CLI)
@@ -82,7 +84,34 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Unauthenticated visitors are
 redirected to the login page. After signing in, the landing page shows the
-member area and a link to `/profile`.
+member area, links to `/profile` and `/iscritti`, and a footer link to the public
+`/privacy` page.
+
+### Member directory and privacy
+
+- `/iscritti` is protected by `AuthGuard` and lists every `profiles` row with
+  name, birth date, enlistment year, and service place. The search box filters
+  by name or service place.
+- Members with `is_admin = true` can edit any member's four profile fields from
+  the directory. Non-admin members only see the read-only list. Supabase RLS is
+  the real authorization boundary; the UI check is only for convenience.
+- `/privacy` is public (no login required) so it can be linked from the login
+  page and satisfies OAuth provider requirements.
+
+#### Promote a member to administrator
+
+There is no separate admin-management screen yet. To make a member an
+administrator, run this in the Supabase SQL editor with the member's profile UUID:
+
+```sql
+begin;
+select set_config('request.jwt.claims', '{"role":"service_role"}', true);
+update public.profiles set is_admin = true where id = '<PROFILE_UUID>';
+commit;
+```
+
+The Phase 1B trigger intentionally blocks changes to `is_admin` from a normal
+SQL session; the temporary service-role claim is the database-owner escape hatch.
 
 ---
 
@@ -176,4 +205,5 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Page shows "Configurazione Supabase mancante"** — `.env.local` is missing or still contains placeholders. Fill it in and restart `npm run dev`.
 - **Google login says the provider is not enabled** — enable the Google provider in the Supabase dashboard and configure the redirect URLs (see above).
 - **Profile page returns "permission denied" (42501)** — the Phase 1B grants are missing. Apply the migrations with `npm run db:push`.
+- **Admin cannot edit another member's profile** — apply the Phase 1C migration with `npm run db:push`. It adds the `is_current_user_admin()` helper and the admin UPDATE policy.
 - **CLI cannot link** — make sure you passed the project ref: `npx supabase link --project-ref <REF_ID>` (see the dashboard URL).

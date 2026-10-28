@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
 import { getFirstName, getInitials, getUserDisplayName } from "@/lib/display";
@@ -198,13 +199,35 @@ function HomeContent() {
             </p>
           </div>
         </section>
+
+        <section className="mt-5">
+          <Link
+            className="group flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800"
+            href="/iscritti"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                <UsersIcon className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                  Lista iscritti
+                </h2>
+                <p className="mt-1 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  Consulta i soci del gruppo e cerca per nome o luogo di
+                  servizio.
+                </p>
+              </div>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              Apri la lista
+              <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            </span>
+          </Link>
+        </section>
       </main>
 
-      <footer className="border-t border-zinc-200 py-6 dark:border-zinc-800">
-        <p className="mx-auto w-full max-w-5xl px-4 text-center text-xs text-zinc-500 sm:px-6 sm:text-left dark:text-zinc-400">
-          Gruppo Alpini · Portale riservato ai soci
-        </p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

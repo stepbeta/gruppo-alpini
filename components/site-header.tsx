@@ -10,10 +10,12 @@ import {
   HomeIcon,
   LogOutIcon,
   UserIcon,
+  UsersIcon,
 } from "./icons";
 
 const navItems = [
   { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/iscritti", label: "Iscritti", icon: UsersIcon },
   { href: "/profile", label: "Profilo", icon: UserIcon },
 ];
 
@@ -26,6 +28,7 @@ export function SiteHeader() {
 
   const displayName = getUserDisplayName(user);
   const initials = getInitials(displayName);
+  const isDirectoryActive = pathname.startsWith("/iscritti");
 
   async function handleSignOut() {
     setSignOutError(null);
@@ -53,7 +56,10 @@ export function SiteHeader() {
           <Brand compact />
         </Link>
 
-        <nav aria-label="Navigazione principale" className="flex items-center gap-1">
+        <nav
+          aria-label="Navigazione principale"
+          className="hidden items-center gap-1 sm:flex"
+        >
           {navItems.map((item) => {
             const isActive =
               item.href === "/"
@@ -80,6 +86,19 @@ export function SiteHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <Link
+            aria-current={isDirectoryActive ? "page" : undefined}
+            aria-label="Lista iscritti"
+            className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:hidden ${
+              isDirectoryActive
+                ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+            }`}
+            href="/iscritti"
+            title="Lista iscritti"
+          >
+            <UsersIcon className="h-4.5 w-4.5" />
+          </Link>
           <Link
             aria-label="Apri il tuo profilo"
             className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-700 text-xs font-semibold text-white ring-2 ring-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:ring-zinc-950"

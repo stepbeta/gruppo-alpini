@@ -3,10 +3,16 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
+import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
 import { getInitials, getUserDisplayName } from "@/lib/display";
-import { fetchProfile, saveProfile, type Profile } from "@/lib/profile";
+import {
+  fetchProfile,
+  formatProfileError,
+  saveProfile,
+  type Profile,
+} from "@/lib/profile";
 import { supabase } from "@/lib/supabase";
 import {
   AlertCircleIcon,
@@ -45,26 +51,6 @@ function formValuesFromProfile(profile: Profile | null, fallbackName: string): F
       profile.enlistment_year === null ? "" : String(profile.enlistment_year),
     service_place: profile.service_place ?? "",
   };
-}
-
-function friendlyProfileError(message: string): string {
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes("permission denied") ||
-    normalized.includes("42501") ||
-    normalized.includes("row-level security")
-  ) {
-    return "Non hai i permessi per aggiornare il profilo. Verifica che la migrazione di Phase 1B sia stata applicata al database.";
-  }
-  if (normalized.includes("duplicate key")) {
-    return "Esiste già una scheda collegata a questo account.";
-  }
-  if (normalized.includes("invalid input syntax")) {
-    return "Uno dei valori inseriti non è valido. Controlla i campi e riprova.";
-  }
-
-  return message;
 }
 
 function formatUpdatedAt(value: string): string | null {
@@ -184,7 +170,7 @@ function ProfileContent() {
     });
 
     if (error) {
-      setSaveError(friendlyProfileError(error));
+      setSaveError(formatProfileError(error));
       setIsSaving(false);
       return;
     }
@@ -455,11 +441,7 @@ function ProfileContent() {
         </section>
       </main>
 
-      <footer className="border-t border-zinc-200 py-6 dark:border-zinc-800">
-        <p className="mx-auto w-full max-w-4xl px-4 text-center text-xs text-zinc-500 sm:px-6 sm:text-left dark:text-zinc-400">
-          Gruppo Alpini · Portale riservato ai soci
-        </p>
-      </footer>
+      <SiteFooter containerClassName="max-w-4xl" />
     </div>
   );
 }
