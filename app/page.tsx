@@ -162,11 +162,6 @@ function HomeContent() {
             <ul className="mt-5 space-y-3">
               {[
                 {
-                  icon: CalendarIcon,
-                  title: "Eventi e adesioni",
-                  description: "Calendario delle attività e conferme di presenza.",
-                },
-                {
                   icon: UsersIcon,
                   title: "Richieste e comunicazioni",
                   description: "Un canale diretto con gli amministratori.",
@@ -200,9 +195,32 @@ function HomeContent() {
           </div>
         </section>
 
-        <section className="mt-5">
+        <section className="mt-5 grid gap-5 md:grid-cols-2">
           <Link
-            className="group flex flex-col gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800"
+            className="group flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800"
+            href="/eventi"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                <CalendarIcon className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                  Eventi e adesioni
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  Consulta il calendario del gruppo e indica se sarai presente.
+                </p>
+              </div>
+            </div>
+            <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              Apri gli eventi
+              <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            </span>
+          </Link>
+
+          <Link
+            className="group flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800"
             href="/iscritti"
           >
             <div className="flex items-start gap-4">
@@ -213,13 +231,13 @@ function HomeContent() {
                 <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
                   Lista iscritti
                 </h2>
-                <p className="mt-1 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
                   Consulta i soci del gruppo e cerca per nome o luogo di
                   servizio.
                 </p>
               </div>
             </div>
-            <span className="inline-flex shrink-0 items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+            <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
               Apri la lista
               <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
             </span>

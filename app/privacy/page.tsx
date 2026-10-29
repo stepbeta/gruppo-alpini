@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 const summaryItems = [
   "I dati servono solo per organizzare la vita del gruppo e le sue attività.",
   "La lista iscritti è visibile esclusivamente ai soci che hanno effettuato l’accesso.",
+  "Le tue risposte agli eventi sono visibili a te e agli amministratori del gruppo.",
   "Non vendiamo i dati e non li usiamo per pubblicità o per studiare le tue abitudini.",
 ];
 
@@ -85,14 +86,19 @@ export default function PrivacyPage() {
               Quali dati raccogliamo
             </h2>
             <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-              Quando crei l’account e compili la tua scheda, possiamo raccogliere:
+              Quando crei l’account, compili la tua scheda o rispondi a un
+              evento, possiamo raccogliere:
             </p>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-zinc-600 marker:text-emerald-600 dark:text-zinc-300 dark:marker:text-emerald-400">
               <li>nome e cognome;</li>
               <li>indirizzo email collegato all’account;</li>
               <li>data di nascita, se scegli di inserirla;</li>
               <li>anno di leva, se scegli di inserirlo;</li>
-              <li>luogo di servizio, se scegli di inserirlo.</li>
+              <li>luogo di servizio, se scegli di inserirlo;</li>
+              <li>
+                la tua risposta di partecipazione agli eventi (presente,
+                assente o in forse).
+              </li>
             </ul>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               Ti chiediamo di inserire solo le informazioni utili alla vita del
@@ -111,6 +117,10 @@ export default function PrivacyPage() {
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-zinc-600 marker:text-emerald-600 dark:text-zinc-300 dark:marker:text-emerald-400">
               <li>tenere aggiornata la lista degli iscritti;</li>
               <li>organizzare attività, eventi e comunicazioni del gruppo;</li>
+              <li>
+                raccogliere le adesioni agli eventi e aiutare gli organizzatori a
+                preparare l’incontro;
+              </li>
               <li>permetterti di accedere al portale e gestire la tua scheda.</li>
             </ul>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
@@ -153,6 +163,12 @@ export default function PrivacyPage() {
               degli altri soci. Gli amministratori possono modificare le schede
               per mantenerle corrette. La lista non è pubblica e non viene
               condivisa con persone esterne al gruppo.
+            </p>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Per gli eventi, ogni socio vede soltanto la propria risposta. Gli
+              amministratori vedono il riepilogo delle adesioni (presenti, in
+              forse, assenti) per organizzare l’incontro. Anche questi dati non
+              sono pubblici.
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               Per far funzionare il portale ci appoggiamo a fornitori tecnici:
@@ -199,6 +215,10 @@ export default function PrivacyPage() {
             </p>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-zinc-600 marker:text-emerald-600 dark:text-zinc-300 dark:marker:text-emerald-400">
               <li>vedere e aggiornare i tuoi dati dalla pagina Profilo;</li>
+              <li>
+                vedere e aggiornare la tua risposta a un evento dalla pagina
+                Eventi;
+              </li>
               <li>chiedere la correzione di dati sbagliati;</li>
               <li>chiedere la cancellazione del tuo account e dei tuoi dati;</li>
               <li>chiedere informazioni su come trattiamo i dati.</li>

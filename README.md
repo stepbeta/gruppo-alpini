@@ -22,6 +22,7 @@ gruppo-alpini/
 │   ├── page.tsx         # Landing page (authenticated members)
 │   ├── login/           # Google OAuth + email/password login
 │   ├── profile/         # Member profile: view and update personal data
+│   ├── eventi/          # Event calendar, RSVP, admin event creation and totals
 │   ├── iscritti/        # Member directory + admin profile editing
 │   ├── privacy/         # Public privacy policy (plain Italian)
 │   └── globals.css      # Tailwind & global styles
@@ -29,6 +30,7 @@ gruppo-alpini/
 ├── lib/
 │   ├── supabase.ts      # Initialized singleton browser Supabase client
 │   ├── profile.ts       # Profile types and read/upsert/admin-update helpers
+│   ├── events.ts        # Event/RSVP types, formatting and data helpers
 │   └── display.ts       # Display-name and initials helpers
 ├── supabase/
 │   ├── config.toml      # Local Supabase stack configuration (CLI)
@@ -84,8 +86,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Unauthenticated visitors are
 redirected to the login page. After signing in, the landing page shows the
-member area, links to `/profile` and `/iscritti`, and a footer link to the public
-`/privacy` page.
+member area, links to `/profile`, `/eventi` and `/iscritti`, and a footer link to
+the public `/privacy` page.
 
 ### Member directory and privacy
 
@@ -97,6 +99,20 @@ member area, links to `/profile` and `/iscritti`, and a footer link to the publi
   the real authorization boundary; the UI check is only for convenience.
 - `/privacy` is public (no login required) so it can be linked from the login
   page and satisfies OAuth provider requirements.
+
+### Events and RSVP
+
+- `/eventi` is protected by `AuthGuard` and lists upcoming events first, with
+  past events in a separate section. Each card shows title, description, date,
+  time, and location.
+- Signed-in members can choose **Presente**, **In forse**, or **Assente** for
+  each upcoming event. The selected response is highlighted and can be changed
+  at any time; responses to past events are read-only.
+- Members with `is_admin = true` also see a **Nuovo evento** button and an
+  attendance summary (present, tentative, absent) on every event card.
+  Non-admin members never see other members' responses: the Phase 1D migration
+  limits `event_responses` reads to the owner, with an admin-only exception for
+  the totals.
 
 #### Promote a member to administrator
 
@@ -198,7 +214,10 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 4. Click **Deploy**. Every push to the main branch redeploys automatically; preview deployments are created for pull requests.
 5. Make sure the cloud database has the schema: `npx supabase link --project-ref <REF_ID>` then `npx supabase db push` (Vercel does not run migrations for you).
 
-> The publishable key is safe to expose to the browser (`NEXT_PUBLIC_*`) — Row Level Security (RLS) is what protects your data: the migrations here `GRANT SELECT` to the `anon` role and add an RLS policy that makes **only** the `tests` table publicly readable.
+> The publishable key is safe to expose to the browser (`NEXT_PUBLIC_*`) — Row
+> Level Security (RLS) is what protects your data. Member data is readable only
+> by authenticated users; admin-only writes and event response visibility are
+> enforced by the policies in `supabase/migrations/`.
 
 ## Troubleshooting
 
@@ -206,4 +225,5 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Google login says the provider is not enabled** — enable the Google provider in the Supabase dashboard and configure the redirect URLs (see above).
 - **Profile page returns "permission denied" (42501)** — the Phase 1B grants are missing. Apply the migrations with `npm run db:push`.
 - **Admin cannot edit another member's profile** — apply the Phase 1C migration with `npm run db:push`. It adds the `is_current_user_admin()` helper and the admin UPDATE policy.
+- **Events page returns "permission denied" (42501) or an empty list** — apply the Phase 1D migration with `npm run db:push`. It grants API access to `events`/`event_responses` and limits non-admin response reads to the member's own rows.
 - **CLI cannot link** — make sure you passed the project ref: `npx supabase link --project-ref <REF_ID>` (see the dashboard URL).

@@ -100,6 +100,14 @@ export function CalendarIcon({ className }: IconProps) {
   );
 }
 
+export function PlusIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M12 5v14M5 12h14" />
+    </IconBase>
+  );
+}
+
 export function MapPinIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>
