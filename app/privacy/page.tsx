@@ -166,8 +166,9 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               Per gli eventi, ogni socio vede soltanto la propria risposta. Gli
-              amministratori vedono il riepilogo delle adesioni (presenti, in
-              forse, assenti) per organizzare l’incontro. Anche questi dati non
+              amministratori vedono le risposte dei soci con nome e stato
+              (presente, in forse o assente), compresi i soci che non hanno
+              ancora risposto, per organizzare l’incontro. Anche questi dati non
               sono pubblici.
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
@@ -203,6 +204,10 @@ export default function PrivacyPage() {
               gruppo. Se vuoi cancellare l’account o la scheda, contatta un
               amministratore: rimuoveremo i dati, salvo eventuali obblighi
               previsti dalla legge.
+            </p>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Le risposte agli eventi restano collegate all’evento. Se un evento
+              viene eliminato, vengono rimosse anche le risposte collegate.
             </p>
           </section>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { Member } from "@/lib/profile";
 import {
   formatEventDate,
   formatEventError,
@@ -15,6 +16,8 @@ import {
   CheckCircleIcon,
   ClockIcon,
   MapPinIcon,
+  PencilIcon,
+  TrashIcon,
   UsersIcon,
   XIcon,
 } from "@/components/icons";
@@ -49,6 +52,29 @@ const RSVP_LABELS: Record<EventResponseStatus, string> = {
   absent: "Assente",
 };
 
+const ATTENDANCE_TONES = {
+  present: {
+    card: "border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30",
+    title: "text-emerald-900 dark:text-emerald-100",
+    dot: "bg-emerald-600 dark:bg-emerald-400",
+    empty: "text-emerald-800/70 dark:text-emerald-200/70",
+  },
+  tentative: {
+    card: "border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30",
+    title: "text-amber-900 dark:text-amber-100",
+    dot: "bg-amber-500 dark:bg-amber-400",
+    empty: "text-amber-800/70 dark:text-amber-200/70",
+  },
+  absent: {
+    card: "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900",
+    title: "text-zinc-800 dark:text-zinc-100",
+    dot: "bg-zinc-500 dark:bg-zinc-400",
+    empty: "text-zinc-500 dark:text-zinc-400",
+  },
+} as const;
+
+const collator = new Intl.Collator("it", { sensitivity: "base" });
+
 function statusBadgeClass(status: EventResponseStatus | undefined): string {
   switch (status) {
     case "present":
@@ -62,38 +88,108 @@ function statusBadgeClass(status: EventResponseStatus | undefined): string {
   }
 }
 
+function memberDisplayName(member: Member): string {
+  return member.full_name?.trim() || "Nome non indicato";
+}
+
+function AttendanceList({
+  title,
+  names,
+  tone,
+  empty,
+}: {
+  title: string;
+  names: string[];
+  tone: keyof typeof ATTENDANCE_TONES;
+  empty: string;
+}) {
+  const styles = ATTENDANCE_TONES[tone];
+
+  return (
+    <div className={`rounded-xl border p-3 ${styles.card}`}>
+      <p className={`text-sm font-semibold ${styles.title}`}>
+        {title} ({names.length})
+      </p>
+      {names.length > 0 ? (
+        <ul className="mt-2 space-y-1.5 text-sm leading-6 text-zinc-700 dark:text-zinc-200">
+          {names.map((name, index) => (
+            <li className="flex items-start gap-2" key={`${name}-${index}`}>
+              <span
+                aria-hidden="true"
+                className={`mt-2 h-1.5 w-1.5 shrink-0 rounded-full ${styles.dot}`}
+              />
+              <span className="break-words">{name}</span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={`mt-2 text-sm ${styles.empty}`}>{empty}</p>
+      )}
+    </div>
+  );
+}
+
 type EventCardProps = {
   event: EventRecord;
   response: EventResponseRecord | undefined;
   allResponses: EventResponseRecord[];
+  members: Member[];
   userId: string;
   isAdmin: boolean;
   isPast: boolean;
   onResponseSaved: (response: EventResponseRecord) => void;
+  onEdit: (event: EventRecord) => void;
+  onDelete: (event: EventRecord) => void;
 };
 
 export function EventCard({
   event,
   response,
   allResponses,
+  members,
   userId,
   isAdmin,
   isPast,
   onResponseSaved,
+  onEdit,
+  onDelete,
 }: EventCardProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const dateParts = formatEventDate(event.event_date);
+  const formattedDate = formatEventDate(event.event_date, event.is_all_day);
   const statusLabel = response
     ? RSVP_LABELS[response.status]
     : "Non hai ancora risposto";
 
-  const counts = { present: 0, tentative: 0, absent: 0 };
-  for (const item of allResponses) {
-    counts[item.status] += 1;
+  const memberNames = new Map<string, string>();
+  for (const member of members) {
+    memberNames.set(member.id, memberDisplayName(member));
   }
-  const totalResponses = allResponses.length;
+
+  const namesByStatus: Record<EventResponseStatus, string[]> = {
+    present: [],
+    tentative: [],
+    absent: [],
+  };
+
+  for (const item of allResponses) {
+    namesByStatus[item.status].push(
+      memberNames.get(item.user_id) ?? "Nome non indicato",
+    );
+  }
+
+  for (const names of Object.values(namesByStatus)) {
+    names.sort((first, second) => collator.compare(first, second));
+  }
+
+  const respondedIds = new Set(
+    allResponses.map((item) => item.user_id),
+  );
+  const noResponseNames = members
+    .filter((member) => !respondedIds.has(member.id))
+    .map(memberDisplayName)
+    .sort((first, second) => collator.compare(first, second));
 
   async function handleResponse(status: EventResponseStatus) {
     if (isSaving || isPast || response?.status === status) return;
@@ -121,41 +217,53 @@ export function EventCard({
   return (
     <li className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
       <div className="p-5 sm:p-7">
-        <div className="flex items-start gap-4 sm:gap-5">
-          <div className="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-2xl bg-emerald-100 text-emerald-900 sm:h-18 sm:w-18 dark:bg-emerald-950/60 dark:text-emerald-300">
-            <span className="text-2xl font-bold leading-none sm:text-3xl">
-              {dateParts?.day ?? "—"}
-            </span>
-            <span className="mt-1 text-[11px] font-bold uppercase tracking-wide">
-              {dateParts?.month ?? "data"}
-            </span>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
+            {isPast ? "Evento concluso" : "Prossimo evento"}
+          </p>
+
+          {isAdmin ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                onClick={() => onEdit(event)}
+                type="button"
+              >
+                <PencilIcon className="h-4 w-4" />
+                Modifica
+              </button>
+              <button
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 dark:border-red-900 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/40"
+                onClick={() => onDelete(event)}
+                type="button"
+              >
+                <TrashIcon className="h-4 w-4" />
+                Elimina
+              </button>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-3 flex items-start gap-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+            <CalendarIcon className="h-7 w-7" />
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
-              <CalendarIcon className="h-4 w-4" />
-              {isPast
-                ? "Evento concluso"
-                : (dateParts?.weekday ?? "Data da definire")}
-            </p>
+            <time
+              className="block text-lg font-semibold text-emerald-800 sm:text-xl dark:text-emerald-300"
+              dateTime={event.event_date}
+            >
+              {formattedDate}
+            </time>
             <h2 className="mt-1 break-words text-2xl font-semibold tracking-tight text-zinc-900 sm:text-3xl dark:text-zinc-50">
               {event.title}
             </h2>
 
-            <div className="mt-3 flex flex-col gap-2 text-base leading-7 text-zinc-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 dark:text-zinc-300">
-              <span className="inline-flex items-start gap-2">
-                <CalendarIcon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
-                <span>
-                  {dateParts
-                    ? `${dateParts.fullDate} · ${dateParts.time}`
-                    : "Data da definire"}
-                </span>
-              </span>
-              <span className="inline-flex items-start gap-2">
-                <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
-                <span className="break-words">
-                  {event.location?.trim() || "Luogo da definire"}
-                </span>
+            <div className="mt-2 flex items-start gap-2 text-base leading-7 text-zinc-600 dark:text-zinc-300">
+              <MapPinIcon className="mt-1 h-4 w-4 shrink-0 text-emerald-700 dark:text-emerald-400" />
+              <span className="break-words">
+                {event.location?.trim() || "Luogo da definire"}
               </span>
             </div>
           </div>
@@ -237,11 +345,16 @@ export function EventCard({
 
         {isAdmin ? (
           <div className="mt-5 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
-            <div className="flex items-center gap-2">
-              <UsersIcon className="h-4.5 w-4.5 text-zinc-500 dark:text-zinc-400" />
-              <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-                Riepilogo adesioni
-              </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <UsersIcon className="h-4.5 w-4.5 text-zinc-500 dark:text-zinc-400" />
+                <h3 className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                  Riepilogo adesioni
+                </h3>
+              </div>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Risposte ricevute: {allResponses.length}
+              </p>
             </div>
 
             <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
@@ -250,7 +363,7 @@ export function EventCard({
                   Presenti
                 </dt>
                 <dd className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                  {counts.present}
+                  {namesByStatus.present.length}
                 </dd>
               </div>
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-3 dark:border-amber-900 dark:bg-amber-950/30">
@@ -258,7 +371,7 @@ export function EventCard({
                   In forse
                 </dt>
                 <dd className="mt-1 text-2xl font-bold text-amber-900 dark:text-amber-100">
-                  {counts.tentative}
+                  {namesByStatus.tentative.length}
                 </dd>
               </div>
               <div className="rounded-xl border border-zinc-200 bg-white px-2 py-3 dark:border-zinc-700 dark:bg-zinc-900">
@@ -266,15 +379,63 @@ export function EventCard({
                   Assenti
                 </dt>
                 <dd className="mt-1 text-2xl font-bold text-zinc-800 dark:text-zinc-100">
-                  {counts.absent}
+                  {namesByStatus.absent.length}
                 </dd>
               </div>
             </dl>
 
-            {totalResponses === 0 ? (
-              <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                Nessuna risposta ricevuta.
-              </p>
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                Dettaglio per stato
+              </h4>
+              <div className="mt-2 grid gap-3 lg:grid-cols-3">
+                <AttendanceList
+                  empty="Nessun presente"
+                  names={namesByStatus.present}
+                  title="Presenti"
+                  tone="present"
+                />
+                <AttendanceList
+                  empty="Nessun in forse"
+                  names={namesByStatus.tentative}
+                  title="In forse"
+                  tone="tentative"
+                />
+                <AttendanceList
+                  empty="Nessun assente"
+                  names={namesByStatus.absent}
+                  title="Assenti"
+                  tone="absent"
+                />
+              </div>
+            </div>
+
+            {members.length > 0 ? (
+              <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
+                <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
+                  Non hanno ancora risposto ({noResponseNames.length})
+                </p>
+                {noResponseNames.length > 0 ? (
+                  <ul className="mt-2 grid gap-1.5 text-sm leading-6 text-zinc-700 sm:grid-cols-2 dark:text-zinc-200">
+                    {noResponseNames.map((name, index) => (
+                      <li
+                        className="flex items-start gap-2"
+                        key={`${name}-${index}`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400 dark:bg-zinc-500"
+                        />
+                        <span className="break-words">{name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+                    Tutti i soci hanno risposto.
+                  </p>
+                )}
+              </div>
             ) : null}
           </div>
         ) : null}

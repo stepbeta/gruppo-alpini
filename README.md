@@ -105,14 +105,21 @@ the public `/privacy` page.
 - `/eventi` is protected by `AuthGuard` and lists upcoming events first, with
   past events in a separate section. Each card shows title, description, date,
   time, and location.
+- Dates and times are displayed and entered in the Italian format
+  `gg/mm/aaaa` and `HH:mm` (strict 24-hour time, no AM/PM). The time is
+  optional: when omitted, the event is treated as all-day and only
+  `dd/mm/yyyy` is shown.
 - Signed-in members can choose **Presente**, **In forse**, or **Assente** for
   each upcoming event. The selected response is highlighted and can be changed
   at any time; responses to past events are read-only.
-- Members with `is_admin = true` also see a **Nuovo evento** button and an
-  attendance summary (present, tentative, absent) on every event card.
-  Non-admin members never see other members' responses: the Phase 1D migration
+- Members with `is_admin = true` also see **Nuovo evento**, **Modifica**, and
+  **Elimina** controls. Deletion asks for confirmation and also removes the
+  event's responses. Every event card includes attendance totals plus the
+  explicit names of members in each category (present, tentative, absent) and
+  optionally those who have not responded yet.
+- Non-admin members never see other members' responses: the Phase 1D migration
   limits `event_responses` reads to the owner, with an admin-only exception for
-  the totals.
+  totals and names.
 
 #### Promote a member to administrator
 
@@ -226,4 +233,5 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Profile page returns "permission denied" (42501)** — the Phase 1B grants are missing. Apply the migrations with `npm run db:push`.
 - **Admin cannot edit another member's profile** — apply the Phase 1C migration with `npm run db:push`. It adds the `is_current_user_admin()` helper and the admin UPDATE policy.
 - **Events page returns "permission denied" (42501) or an empty list** — apply the Phase 1D migration with `npm run db:push`. It grants API access to `events`/`event_responses` and limits non-admin response reads to the member's own rows.
+- **Admin cannot edit or delete an event** — apply all pending migrations with `npm run db:push`. The Phase 1D delete migration adds the admin-only `DELETE` grant/policy, while editing relies on the existing admin `UPDATE` policy.
 - **CLI cannot link** — make sure you passed the project ref: `npx supabase link --project-ref <REF_ID>` (see the dashboard URL).

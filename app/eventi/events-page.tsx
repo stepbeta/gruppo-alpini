@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
-import { fetchProfile } from "@/lib/profile";
+import { fetchMembers, fetchProfile, type Member } from "@/lib/profile";
 import {
   fetchEventResponses,
   fetchEvents,
@@ -19,12 +19,32 @@ import {
   PlusIcon,
   XIcon,
 } from "@/components/icons";
+import { DeleteEventDialog } from "./delete-event-dialog";
 import { EventCard } from "./event-card";
-import { CreateEventDialog } from "./create-event-dialog";
+import { EventDialog } from "./event-dialog";
 
 function eventTimestamp(event: EventRecord): number {
   const timestamp = new Date(event.event_date).getTime();
   return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+/**
+ * All-day events stay upcoming for their whole date; timed events switch to
+ * past at their exact start time.
+ */
+function isEventPast(event: EventRecord, now: number): boolean {
+  if (event.is_all_day) {
+    const today = new Date(now);
+    const startOfToday = Date.UTC(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
+
+    return eventTimestamp(event) < startOfToday;
+  }
+
+  return eventTimestamp(event) < now;
 }
 
 export function EventsPage() {
@@ -33,11 +53,15 @@ export function EventsPage() {
 
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [responses, setResponses] = useState<EventResponseRecord[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [membersError, setMembersError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<EventRecord | null>(null);
+  const [deletingEvent, setDeletingEvent] = useState<EventRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(0);
 
@@ -46,29 +70,48 @@ export function EventsPage() {
 
     let isActive = true;
 
-    Promise.all([
-      fetchEvents(),
-      fetchEventResponses(),
-      fetchProfile(userId),
-    ]).then(([eventsResult, responsesResult, profileResult]) => {
-      if (!isActive) return;
+    Promise.all([fetchEvents(), fetchProfile(userId)]).then(
+      async ([eventsResult, profileResult]) => {
+        if (!isActive) return;
 
-      const error =
-        eventsResult.error || responsesResult.error || profileResult.error;
+        const baseError = eventsResult.error || profileResult.error;
+        if (baseError) {
+          setLoadError(formatEventError(baseError));
+          setIsLoading(false);
+          return;
+        }
 
-      if (error) {
-        setLoadError(formatEventError(error));
+        const isAdminUser = profileResult.profile?.is_admin === true;
+        const membersPromise: Promise<{
+          members: Member[];
+          error: string | null;
+        }> = isAdminUser
+          ? fetchMembers()
+          : Promise.resolve({ members: [], error: null });
+
+        const [responsesResult, membersResult] = await Promise.all([
+          fetchEventResponses(),
+          membersPromise,
+        ]);
+
+        if (!isActive) return;
+
+        if (responsesResult.error) {
+          setLoadError(formatEventError(responsesResult.error));
+          setIsLoading(false);
+          return;
+        }
+
+        setEvents(eventsResult.events);
+        setResponses(responsesResult.responses);
+        setMembers(membersResult.members);
+        setMembersError(membersResult.error);
+        setIsAdmin(isAdminUser);
+        setNow(Date.now());
+        setLoadError(null);
         setIsLoading(false);
-        return;
-      }
-
-      setEvents(eventsResult.events);
-      setResponses(responsesResult.responses);
-      setIsAdmin(profileResult.profile?.is_admin === true);
-      setNow(Date.now());
-      setLoadError(null);
-      setIsLoading(false);
-    });
+      },
+    );
 
     return () => {
       isActive = false;
@@ -78,7 +121,7 @@ export function EventsPage() {
   const upcomingEvents = useMemo(
     () =>
       [...events]
-        .filter((event) => eventTimestamp(event) >= now)
+        .filter((event) => !isEventPast(event, now))
         .sort((first, second) => eventTimestamp(first) - eventTimestamp(second)),
     [events, now],
   );
@@ -86,7 +129,7 @@ export function EventsPage() {
   const pastEvents = useMemo(
     () =>
       [...events]
-        .filter((event) => eventTimestamp(event) < now)
+        .filter((event) => isEventPast(event, now))
         .sort((first, second) => eventTimestamp(second) - eventTimestamp(first)),
     [events, now],
   );
@@ -119,6 +162,14 @@ export function EventsPage() {
     setIsCreateOpen(false);
   }, []);
 
+  const handleCloseEdit = useCallback(() => {
+    setEditingEvent(null);
+  }, []);
+
+  const handleCloseDelete = useCallback(() => {
+    setDeletingEvent(null);
+  }, []);
+
   function handleResponseSaved(updatedResponse: EventResponseRecord) {
     setResponses((current) => {
       const exists = current.some(
@@ -148,9 +199,42 @@ export function EventsPage() {
     setNotice(`Evento creato: ${createdEvent.title}.`);
   }
 
+  function handleEventUpdated(updatedEvent: EventRecord) {
+    setEvents((current) =>
+      current.map((event) =>
+        event.id === updatedEvent.id ? updatedEvent : event,
+      ),
+    );
+    setNow(Date.now());
+    setEditingEvent(null);
+    setNotice(`Evento aggiornato: ${updatedEvent.title}.`);
+  }
+
+  function handleEventDeleted(eventId: string) {
+    const event = events.find((item) => item.id === eventId);
+
+    setEvents((current) => current.filter((item) => item.id !== eventId));
+    setResponses((current) =>
+      current.filter((response) => response.event_id !== eventId),
+    );
+    setDeletingEvent(null);
+    setNotice(`Evento eliminato: ${event?.title ?? "l’evento"}.`);
+  }
+
+  function handleOpenEdit(event: EventRecord) {
+    setNotice(null);
+    setEditingEvent(event);
+  }
+
+  function handleOpenDelete(event: EventRecord) {
+    setNotice(null);
+    setDeletingEvent(event);
+  }
+
   function handleRetry() {
     setIsLoading(true);
     setLoadError(null);
+    setMembersError(null);
     setReloadKey((current) => current + 1);
   }
 
@@ -207,6 +291,19 @@ export function EventsPage() {
             >
               <XIcon className="h-4 w-4" />
             </button>
+          </div>
+        ) : null}
+
+        {!isLoading && !loadError && isAdmin && membersError ? (
+          <div
+            className="mt-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+            role="alert"
+          >
+            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Impossibile caricare i nomi dei soci per il dettaglio delle
+              adesioni: {formatEventError(membersError)}
+            </span>
           </div>
         ) : null}
 
@@ -280,6 +377,9 @@ export function EventsPage() {
                       isAdmin={isAdmin}
                       isPast={false}
                       key={event.id}
+                      members={isAdmin ? members : []}
+                      onDelete={handleOpenDelete}
+                      onEdit={handleOpenEdit}
                       onResponseSaved={handleResponseSaved}
                       response={myResponses.get(event.id)}
                       userId={userId}
@@ -337,6 +437,9 @@ export function EventsPage() {
                       isAdmin={isAdmin}
                       isPast
                       key={event.id}
+                      members={isAdmin ? members : []}
+                      onDelete={handleOpenDelete}
+                      onEdit={handleOpenEdit}
                       onResponseSaved={handleResponseSaved}
                       response={myResponses.get(event.id)}
                       userId={userId}
@@ -352,10 +455,31 @@ export function EventsPage() {
       <SiteFooter />
 
       {isAdmin && isCreateOpen ? (
-        <CreateEventDialog
+        <EventDialog
+          key="create-event"
+          mode="create"
           onClose={handleCloseCreate}
-          onCreated={handleEventCreated}
+          onSaved={handleEventCreated}
           userId={userId}
+        />
+      ) : null}
+
+      {isAdmin && editingEvent ? (
+        <EventDialog
+          event={editingEvent}
+          key={`edit-${editingEvent.id}`}
+          mode="edit"
+          onClose={handleCloseEdit}
+          onSaved={handleEventUpdated}
+          userId={userId}
+        />
+      ) : null}
+
+      {isAdmin && deletingEvent ? (
+        <DeleteEventDialog
+          event={deletingEvent}
+          onClose={handleCloseDelete}
+          onDeleted={handleEventDeleted}
         />
       ) : null}
     </div>
