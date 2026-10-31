@@ -11,6 +11,7 @@ import { fetchProfile, type Profile } from "@/lib/profile";
 import {
   ArrowRightIcon,
   CalendarIcon,
+  MailIcon,
   MapPinIcon,
   ShieldCheckIcon,
   UsersIcon,
@@ -162,11 +163,6 @@ function HomeContent() {
             <ul className="mt-5 space-y-3">
               {[
                 {
-                  icon: UsersIcon,
-                  title: "Richieste e comunicazioni",
-                  description: "Un canale diretto con gli amministratori.",
-                },
-                {
                   icon: MapPinIcon,
                   title: "Vita del gruppo",
                   description: "Luoghi, iniziative e momenti condivisi.",
@@ -195,7 +191,7 @@ function HomeContent() {
           </div>
         </section>
 
-        <section className="mt-5 grid gap-5 md:grid-cols-2">
+        <section className="mt-5 grid gap-5 md:grid-cols-3">
           <Link
             className="group flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800"
             href="/eventi"
@@ -239,6 +235,29 @@ function HomeContent() {
             </div>
             <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
               Apri la lista
+              <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
+            </span>
+          </Link>
+
+          <Link
+            className="group flex flex-col justify-between rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-emerald-800"
+            href="/richieste"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                <MailIcon className="h-5 w-5" />
+              </span>
+              <div>
+                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                  Richieste alla segreteria
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  Invia una comunicazione e segui lo stato della tua richiesta.
+                </p>
+              </div>
+            </div>
+            <span className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              Apri le richieste
               <ArrowRightIcon className="h-4 w-4 transition group-hover:translate-x-0.5" />
             </span>
           </Link>

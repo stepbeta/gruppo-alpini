@@ -24,6 +24,7 @@ gruppo-alpini/
 │   ├── profile/         # Member profile: view and update personal data
 │   ├── eventi/          # Event calendar, RSVP, admin event creation and totals
 │   ├── iscritti/        # Member directory + admin profile editing
+│   ├── richieste/       # Generic requests form + admin secretariat board
 │   ├── privacy/         # Public privacy policy (plain Italian)
 │   └── globals.css      # Tailwind & global styles
 ├── components/          # Shared UI: auth provider/guard, header, footer, icons, loading states
@@ -31,6 +32,7 @@ gruppo-alpini/
 │   ├── supabase.ts      # Initialized singleton browser Supabase client
 │   ├── profile.ts       # Profile types and read/upsert/admin-update helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
+│   ├── requests.ts      # Generic request types, formatting and data helpers
 │   └── display.ts       # Display-name and initials helpers
 ├── supabase/
 │   ├── config.toml      # Local Supabase stack configuration (CLI)
@@ -136,6 +138,20 @@ commit;
 The Phase 1B trigger intentionally blocks changes to `is_admin` from a normal
 SQL session; the temporary service-role claim is the database-owner escape hatch.
 
+### Generic requests and secretariat board
+
+- `/richieste` is protected by `AuthGuard`. Any signed-in member can send a
+  request, inquiry, or note to the group secretariat; the form stores it in
+  `generic_requests`.
+- The page lists the member's own requests with their status (`In attesa` or
+  `Risolta`) and submission time.
+- Members with `is_admin = true` also see the **Bacheca della segreteria**:
+  every request from every member, with the author's name, a status filter, and
+  buttons to mark a request as resolved or reopen it.
+- RLS lets members read only their own rows and administrators read all rows.
+  Only administrators can update the status, and the Phase 1E migration grants
+  `UPDATE` on the `status` column only.
+
 ---
 
 ## Database migrations (Supabase CLI)
@@ -234,4 +250,5 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Admin cannot edit another member's profile** — apply the Phase 1C migration with `npm run db:push`. It adds the `is_current_user_admin()` helper and the admin UPDATE policy.
 - **Events page returns "permission denied" (42501) or an empty list** — apply the Phase 1D migration with `npm run db:push`. It grants API access to `events`/`event_responses` and limits non-admin response reads to the member's own rows.
 - **Admin cannot edit or delete an event** — apply all pending migrations with `npm run db:push`. The Phase 1D delete migration adds the admin-only `DELETE` grant/policy, while editing relies on the existing admin `UPDATE` policy.
+- **Requests page returns "permission denied" (42501) or an empty list** — apply the Phase 1E migration with `npm run db:push`. It grants API access to `generic_requests`, keeps member reads scoped to their own rows, and allows administrators to update only the request status.
 - **CLI cannot link** — make sure you passed the project ref: `npx supabase link --project-ref <REF_ID>` (see the dashboard URL).

@@ -577,7 +577,11 @@ export function RequestsPage() {
                               {isUpdating ? (
                                 <span
                                   aria-hidden="true"
-                                  className="h-4 w-4 animate-spin rounded-full border-2 border-current/30 border-t-current"
+                                  className={`h-4 w-4 animate-spin rounded-full border-2 ${
+                                    request.status === "open"
+                                      ? "border-emerald-700/30 border-t-emerald-700 dark:border-emerald-300/30 dark:border-t-emerald-300"
+                                      : "border-zinc-400/50 border-t-zinc-700 dark:border-zinc-600 dark:border-t-zinc-300"
+                                  }`}
                                 />
                               ) : request.status === "open" ? (
                                 <CheckCircleIcon className="h-4 w-4" />

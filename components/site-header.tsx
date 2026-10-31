@@ -10,6 +10,7 @@ import {
   CalendarIcon,
   HomeIcon,
   LogOutIcon,
+  MailIcon,
   UserIcon,
   UsersIcon,
 } from "./icons";
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/", label: "Home", icon: HomeIcon },
   { href: "/eventi", label: "Eventi", icon: CalendarIcon },
   { href: "/iscritti", label: "Iscritti", icon: UsersIcon },
+  { href: "/richieste", label: "Richieste", icon: MailIcon },
   { href: "/profile", label: "Profilo", icon: UserIcon },
 ];
 
@@ -113,7 +115,7 @@ export function SiteHeader() {
 
         <nav
           aria-label="Navigazione mobile"
-          className="mt-2 grid grid-cols-3 gap-1 md:hidden"
+          className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4 md:hidden"
         >
           {mobileNavItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
