@@ -119,6 +119,9 @@ the public `/privacy` page.
   event's responses. Every event card includes attendance totals plus the
   explicit names of members in each category (present, tentative, absent) and
   optionally those who have not responded yet.
+- Event attribution is database-owned: `created_by` is filled from `auth.uid()`
+  on insert and cannot be changed through the API, so an administrator cannot
+  forge another member's identity.
 - Non-admin members never see other members' responses: the Phase 1D migration
   limits `event_responses` reads to the owner, with an admin-only exception for
   totals and names.
@@ -150,7 +153,8 @@ SQL session; the temporary service-role claim is the database-owner escape hatch
   buttons to mark a request as resolved or reopen it.
 - RLS lets members read only their own rows and administrators read all rows.
   Only administrators can update the status, and the Phase 1E migration grants
-  `UPDATE` on the `status` column only.
+  `UPDATE` on the `status` column only. Blank or whitespace-only messages are
+  rejected by a database check constraint, even through direct API calls.
 
 ---
 

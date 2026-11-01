@@ -294,10 +294,14 @@ export async function saveEventResponse(
   }
 }
 
-/** Creates an event as an administrator; RLS enforces the admin check. */
+/**
+ * Creates an event as an administrator.
+ *
+ * `created_by` is intentionally omitted: the database derives it from
+ * `auth.uid()` and rejects a forged value. RLS enforces the admin check.
+ */
 export async function createEvent(
   values: EventInput,
-  createdBy: string,
 ): Promise<{ event: EventRecord | null; error: string | null }> {
   if (!supabase) {
     return { event: null, error: "Supabase non configurato." };
@@ -306,10 +310,7 @@ export async function createEvent(
   try {
     const { data, error } = await supabase
       .from("events")
-      .insert({
-        ...values,
-        created_by: createdBy,
-      })
+      .insert(values)
       .select(EVENT_COLUMNS)
       .single();
 

@@ -23,7 +23,6 @@ import { AlertCircleIcon, XIcon } from "@/components/icons";
 type EventDialogProps = {
   mode: "create" | "edit";
   event?: EventRecord;
-  userId: string;
   onClose: () => void;
   onSaved: (event: EventRecord) => void;
 };
@@ -64,7 +63,6 @@ function initialValues(event?: EventRecord): FormValues {
 export function EventDialog({
   mode,
   event,
-  userId,
   onClose,
   onSaved,
 }: EventDialogProps) {
@@ -167,7 +165,7 @@ export function EventDialog({
     const result =
       isEdit && event
         ? await updateEvent(event.id, input)
-        : await createEvent(input, userId);
+        : await createEvent(input);
 
     if (result.error || !result.event) {
       setError(

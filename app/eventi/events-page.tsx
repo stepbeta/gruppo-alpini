@@ -460,7 +460,6 @@ export function EventsPage() {
           mode="create"
           onClose={handleCloseCreate}
           onSaved={handleEventCreated}
-          userId={userId}
         />
       ) : null}
 
@@ -471,7 +470,6 @@ export function EventsPage() {
           mode="edit"
           onClose={handleCloseEdit}
           onSaved={handleEventUpdated}
-          userId={userId}
         />
       ) : null}
 
