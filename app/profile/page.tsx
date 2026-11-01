@@ -1,11 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AuthGuard } from "@/components/auth-guard";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
+import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { getInitials, getUserDisplayName } from "@/lib/display";
 import {
   fetchProfile,
@@ -20,6 +28,7 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ShieldCheckIcon,
+  TrashIcon,
 } from "@/components/icons";
 
 type FormValues = {
@@ -72,7 +81,8 @@ export default function ProfilePage() {
 }
 
 function ProfileContent() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const router = useRouter();
   const userId = user?.id;
   const fallbackName = getUserDisplayName(user);
   const fallbackNameRef = useRef(fallbackName);
@@ -89,6 +99,7 @@ function ProfileContent() {
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -115,6 +126,10 @@ function ProfileContent() {
       isActive = false;
     };
   }, [userId]);
+
+  const handleCloseDelete = useCallback(() => {
+    setIsDeleteOpen(false);
+  }, []);
 
   if (!user || !userId) return null;
 
@@ -196,6 +211,16 @@ function ProfileContent() {
         // The profile itself was saved; a metadata sync failure is not fatal.
       }
     }
+  }
+
+  async function handleAccountDeleted() {
+    setIsDeleteOpen(false);
+
+    // The auth user no longer exists, so signOut only needs to clear the
+    // browser session. It tolerates 401/404 responses from the Auth API.
+    await signOut();
+    router.replace("/login");
+    router.refresh();
   }
 
   return (
@@ -439,9 +464,48 @@ function ProfileContent() {
             </>
           )}
         </section>
+
+        <section className="mt-6 rounded-3xl border border-red-200 bg-white p-6 shadow-sm sm:p-8 dark:border-red-900 dark:bg-zinc-900">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+                Elimina account
+              </h2>
+              <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                Rimuove definitivamente il tuo accesso e la tua scheda dal
+                portale. Le risposte agli eventi e le richieste già inviate
+                restano conservate in forma anonima per le statistiche storiche
+                del gruppo.
+              </p>
+            </div>
+            <button
+              className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto dark:border-red-900 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/40"
+              disabled={isSaving}
+              onClick={() => {
+                setSaveError(null);
+                setSaveNotice(null);
+                setIsDeleteOpen(true);
+              }}
+              type="button"
+            >
+              <TrashIcon className="h-4 w-4" />
+              Elimina account
+            </button>
+          </div>
+        </section>
       </main>
 
       <SiteFooter containerClassName="max-w-4xl" />
+
+      {isDeleteOpen ? (
+        <DeleteAccountDialog
+          displayName={displayName}
+          mode="self"
+          onClose={handleCloseDelete}
+          onDeleted={handleAccountDeleted}
+          userId={userId}
+        />
+      ) : null}
     </div>
   );
 }

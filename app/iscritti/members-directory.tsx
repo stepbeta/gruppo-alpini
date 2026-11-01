@@ -7,9 +7,11 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
+import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { getInitials } from "@/lib/display";
 import { fetchMembers, type Member } from "@/lib/profile";
 import {
@@ -67,7 +69,8 @@ function formatDirectoryError(message: string): string {
 }
 
 export function MembersDirectory() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const router = useRouter();
   const userId = user?.id;
 
   const [members, setMembers] = useState<Member[]>([]);
@@ -77,6 +80,7 @@ export function MembersDirectory() {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
+  const [deletingMember, setDeletingMember] = useState<Member | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -143,6 +147,39 @@ export function MembersDirectory() {
       `Scheda di ${updatedMember.full_name?.trim() || "questo iscritto"} aggiornata.`,
     );
   }, []);
+
+  const handleRequestDelete = useCallback((member: Member) => {
+    setEditingMember(null);
+    setDeletingMember(member);
+    setNotice(null);
+  }, []);
+
+  const handleCloseDelete = useCallback(() => {
+    setDeletingMember(null);
+  }, []);
+
+  const handleMemberDeleted = useCallback(() => {
+    if (!deletingMember) return;
+
+    const deletedId = deletingMember.id;
+    const deletedName =
+      deletingMember.full_name?.trim() || "questo iscritto";
+
+    setMembers((current) =>
+      current.filter((member) => member.id !== deletedId),
+    );
+    setDeletingMember(null);
+    setNotice(`Scheda di ${deletedName} eliminata.`);
+
+    // An administrator can delete their own account from the directory. The
+    // auth user is already gone, so clear the local session and leave.
+    if (deletedId === userId) {
+      void signOut().then(() => {
+        router.replace("/login");
+        router.refresh();
+      });
+    }
+  }, [deletingMember, userId, signOut, router]);
 
   function handleRetry() {
     setIsLoading(true);
@@ -426,7 +463,18 @@ export function MembersDirectory() {
           key={editingMember.id}
           member={editingMember}
           onClose={handleCloseEditor}
+          onDelete={() => handleRequestDelete(editingMember)}
           onSaved={handleMemberSaved}
+        />
+      ) : null}
+
+      {deletingMember ? (
+        <DeleteAccountDialog
+          displayName={deletingMember.full_name?.trim() || "questo socio"}
+          mode={deletingMember.id === userId ? "self" : "admin"}
+          onClose={handleCloseDelete}
+          onDeleted={handleMemberDeleted}
+          userId={deletingMember.id}
         />
       ) : null}
     </div>

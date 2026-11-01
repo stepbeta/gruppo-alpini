@@ -50,7 +50,7 @@ export default function PrivacyPage() {
             Pagina pubblica
           </span>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Ultimo aggiornamento: 29 ottobre 2026
+            Ultimo aggiornamento: 1 novembre 2026
           </p>
         </div>
 
@@ -201,13 +201,16 @@ export default function PrivacyPage() {
             </h2>
             <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               Conserviamo i dati finché il tuo account è attivo e fai parte del
-              gruppo. Se vuoi cancellare l’account o la scheda, contatta un
-              amministratore: rimuoveremo i dati, salvo eventuali obblighi
-              previsti dalla legge.
+              gruppo. Puoi eliminare il tuo account dalla pagina Profilo; gli
+              amministratori possono eliminare l’account di un socio dalla lista
+              iscritti. L’accesso e la scheda personale vengono rimossi, salvo
+              eventuali obblighi previsti dalla legge.
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-              Le risposte agli eventi restano collegate all’evento. Se un evento
-              viene eliminato, vengono rimosse anche le risposte collegate.
+              Le risposte agli eventi e le richieste già inviate restano
+              conservate in forma anonima, senza collegamento al tuo nome o alla
+              tua email, per mantenere le statistiche storiche del gruppo. Se un
+              evento viene eliminato, vengono rimosse anche le risposte collegate.
             </p>
           </section>
 
@@ -225,7 +228,12 @@ export default function PrivacyPage() {
                 Eventi;
               </li>
               <li>chiedere la correzione di dati sbagliati;</li>
-              <li>chiedere la cancellazione del tuo account e dei tuoi dati;</li>
+              <li>
+                eliminare direttamente il tuo account dalla pagina Profilo;
+              </li>
+              <li>
+                chiedere a un amministratore di eliminare l’account di un socio;
+              </li>
               <li>chiedere informazioni su come trattiamo i dati.</li>
             </ul>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">

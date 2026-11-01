@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Member } from "@/lib/profile";
+import { DELETED_MEMBER_NAME, type Member } from "@/lib/profile";
 import {
   formatEventDate,
   formatEventError,
@@ -174,9 +174,11 @@ export function EventCard({
   };
 
   for (const item of allResponses) {
-    namesByStatus[item.status].push(
-      memberNames.get(item.user_id) ?? "Nome non indicato",
-    );
+    const memberName = item.user_id
+      ? memberNames.get(item.user_id)
+      : DELETED_MEMBER_NAME;
+
+    namesByStatus[item.status].push(memberName ?? DELETED_MEMBER_NAME);
   }
 
   for (const names of Object.values(namesByStatus)) {
@@ -184,7 +186,9 @@ export function EventCard({
   }
 
   const respondedIds = new Set(
-    allResponses.map((item) => item.user_id),
+    allResponses
+      .map((item) => item.user_id)
+      .filter((id): id is string => id !== null),
   );
   const noResponseNames = members
     .filter((member) => !respondedIds.has(member.id))

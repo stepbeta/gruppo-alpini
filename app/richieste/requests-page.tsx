@@ -11,7 +11,12 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
 import { getInitials } from "@/lib/display";
-import { fetchMembers, fetchProfile, type Member } from "@/lib/profile";
+import {
+  DELETED_MEMBER_NAME,
+  fetchMembers,
+  fetchProfile,
+  type Member,
+} from "@/lib/profile";
 import {
   createGenericRequest,
   fetchGenericRequests,
@@ -523,8 +528,9 @@ export function RequestsPage() {
                 {filteredRequests.length > 0 ? (
                   <ul className="mt-5 space-y-3">
                     {filteredRequests.map((request) => {
-                      const memberName =
-                        memberNames.get(request.user_id) ?? "Socio";
+                      const memberName = request.user_id
+                        ? memberNames.get(request.user_id) ?? "Socio"
+                        : DELETED_MEMBER_NAME;
                       const isUpdating = updatingId === request.id;
 
                       return (

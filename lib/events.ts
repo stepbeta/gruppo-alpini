@@ -16,7 +16,7 @@ export type EventRecord = {
 export type EventResponseRecord = {
   id: string;
   event_id: string;
-  user_id: string;
+  user_id: string | null;
   status: EventResponseStatus;
   updated_at: string;
 };
@@ -232,6 +232,8 @@ export async function fetchEvents(): Promise<{
  *
  * Regular members receive only their own rows; administrators receive every
  * row so they can display attendance totals and the names of responders.
+ * Responses whose member account was deleted keep `user_id = NULL` and still
+ * count in the historical attendance totals.
  */
 export async function fetchEventResponses(): Promise<{
   responses: EventResponseRecord[];

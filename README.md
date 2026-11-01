@@ -23,14 +23,16 @@ gruppo-alpini/
 │   ├── login/           # Google OAuth + email/password login
 │   ├── profile/         # Member profile: view and update personal data
 │   ├── eventi/          # Event calendar, RSVP, admin event creation and totals
-│   ├── iscritti/        # Member directory + admin profile editing
+│   ├── iscritti/        # Member directory + admin profile editing/deletion
 │   ├── richieste/       # Generic requests form + admin secretariat board
+│   ├── api/             # Server-side route handlers (account deletion)
 │   ├── privacy/         # Public privacy policy (plain Italian)
 │   └── globals.css      # Tailwind & global styles
-├── components/          # Shared UI: auth provider/guard, header, footer, icons, loading states
+├── components/          # Shared UI: auth provider/guard, header, footer, icons, dialogs
 ├── lib/
 │   ├── supabase.ts      # Initialized singleton browser Supabase client
-│   ├── profile.ts       # Profile types and read/upsert/admin-update helpers
+│   ├── supabase-admin.ts # Server-only Supabase client for Auth admin API
+│   ├── profile.ts       # Profile types and read/upsert/admin/delete helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
 │   ├── requests.ts      # Generic request types, formatting and data helpers
 │   └── display.ts       # Display-name and initials helpers
@@ -59,10 +61,18 @@ Create/fill in `.env.local` in the project root (it is git-ignored):
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your-publishable-key>
+SUPABASE_SERVICE_ROLE_KEY=<your-service-role-or-secret-key>
 ```
 
-Both values are available in the Supabase dashboard under the **Connect** panel (or **Project Settings → API Keys**).
+Both public values are available in the Supabase dashboard under the **Connect** panel (or **Project Settings → API Keys**).
 Until they are set, the homepage gracefully displays a "not configured" message instead of crashing.
+
+`SUPABASE_SERVICE_ROLE_KEY` is **server-only** and must never be prefixed with
+`NEXT_PUBLIC_`. It is used exclusively by `app/api/account/delete/route.ts` to
+call the Supabase Auth admin API when a member deletes their account or an
+administrator deletes another member. A newer Supabase secret key
+(`sb_secret_…`) can be provided instead as `SUPABASE_SECRET_KEY`. Account
+deletion is unavailable until one of these two variables is set.
 
 ### 3. Configure authentication
 
@@ -156,6 +166,28 @@ SQL session; the temporary service-role claim is the database-owner escape hatch
   `UPDATE` on the `status` column only. Blank or whitespace-only messages are
   rejected by a database check constraint, even through direct API calls.
 
+### Account deletion and historical data
+
+- A member can delete their own account from the **Elimina account** section at
+  the bottom of `/profile`. The action opens a confirmation dialog that requires
+  typing `ELIMINA`.
+- Administrators can delete another member from **Modifica** → **Elimina
+  account** in `/iscritti`. The same strict confirmation dialog is used.
+- Browser code never holds the service role key. It calls
+  `POST /api/account/delete` with the current access token; the route validates
+  the session, checks `is_admin` server-side when the target is another member,
+  and only then calls `supabase.auth.admin.deleteUser`.
+- The profile migration changes every historical reference to `profiles(id)` to
+  `ON DELETE SET NULL`:
+  - `events.created_by`
+  - `event_responses.user_id`
+  - `generic_requests.user_id`
+  - `purchase_orders.user_id`
+  The auth user and profile are removed, but event RSVPs and requests are kept
+  with a `NULL` author. `event_responses` rows still carry their status, so past
+  event attendance totals remain correct; the UI labels them **Socio eliminato**.
+- Removing an event still deletes its responses, as before.
+
 ---
 
 ## Database migrations (Supabase CLI)
@@ -237,6 +269,7 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
    | ----------------------------- | ---------------------------------- |
    | `NEXT_PUBLIC_SUPABASE_URL`    | `https://<project-ref>.supabase.co`|
    | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`| Your publishable key           |
+   | `SUPABASE_SERVICE_ROLE_KEY`   | Server-only service role/secret key|
 
 4. Click **Deploy**. Every push to the main branch redeploys automatically; preview deployments are created for pull requests.
 5. Make sure the cloud database has the schema: `npx supabase link --project-ref <REF_ID>` then `npx supabase db push` (Vercel does not run migrations for you).
@@ -255,4 +288,6 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Events page returns "permission denied" (42501) or an empty list** — apply the Phase 1D migration with `npm run db:push`. It grants API access to `events`/`event_responses` and limits non-admin response reads to the member's own rows.
 - **Admin cannot edit or delete an event** — apply all pending migrations with `npm run db:push`. The Phase 1D delete migration adds the admin-only `DELETE` grant/policy, while editing relies on the existing admin `UPDATE` policy.
 - **Requests page returns "permission denied" (42501) or an empty list** — apply the Phase 1E migration with `npm run db:push`. It grants API access to `generic_requests`, keeps member reads scoped to their own rows, and allows administrators to update only the request status.
+- **Delete account fails with a server configuration message** — set `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) in `.env.local` and the hosting provider, then restart `next dev` or rebuild. The variable is server-only and must not use the `NEXT_PUBLIC_` prefix.
+- **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs and requests survive.
 - **CLI cannot link** — make sure you passed the project ref: `npx supabase link --project-ref <REF_ID>` (see the dashboard URL).

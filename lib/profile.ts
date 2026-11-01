@@ -28,6 +28,12 @@ export type Member = Pick<
   | "is_admin"
 >;
 
+/**
+ * Label used for historical rows whose profile was deleted. The row itself is
+ * kept (with a NULL user id) so statistics remain accurate.
+ */
+export const DELETED_MEMBER_NAME = "Socio eliminato";
+
 export const PROFILE_COLUMNS =
   "id, full_name, birth_date, enlistment_year, service_place, is_admin, updated_at";
 
@@ -183,5 +189,60 @@ export async function updateMemberProfile(
     return { member: data as Member, error: null };
   } catch (error) {
     return { member: null, error: errorMessage(error) };
+  }
+}
+
+/**
+ * Deletes an account and its profile.
+ *
+ * The auth user can only be removed with the Supabase admin API, so this calls
+ * a server route that validates the caller’s session (and, for another member,
+ * that the caller is an administrator) before using the service role.
+ */
+export async function deleteAccount(
+  userId: string,
+): Promise<{ error: string | null }> {
+  if (!supabase) {
+    return { error: "Supabase non configurato." };
+  }
+
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      return { error: sessionError.message };
+    }
+
+    if (!session?.access_token) {
+      return { error: "Sessione scaduta. Accedi di nuovo e riprova." };
+    }
+
+    const response = await fetch("/api/account/delete", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId }),
+    });
+
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+
+    if (!response.ok) {
+      return {
+        error:
+          payload?.error ??
+          "Impossibile eliminare l’account. Riprova o contatta un amministratore.",
+      };
+    }
+
+    return { error: null };
+  } catch (error) {
+    return { error: errorMessage(error) };
   }
 }

@@ -4,7 +4,7 @@ export type GenericRequestStatus = "open" | "resolved";
 
 export type GenericRequestRecord = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   message: string;
   status: GenericRequestStatus;
   created_at: string;
