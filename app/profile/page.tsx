@@ -14,6 +14,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
+import { SecurityCredentials } from "./security-credentials";
 import { getInitials, getUserDisplayName } from "@/lib/display";
 import {
   fetchProfile,
@@ -464,6 +465,8 @@ function ProfileContent() {
             </>
           )}
         </section>
+
+        <SecurityCredentials user={user} />
 
         <section className="mt-6 rounded-3xl border border-red-200 bg-white p-6 shadow-sm sm:p-8 dark:border-red-900 dark:bg-zinc-900">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

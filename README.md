@@ -20,18 +20,19 @@ gruppo-alpini/
 ├── app/
 │   ├── layout.tsx       # Root layout: HTML shell, fonts, global styles, AuthProvider
 │   ├── page.tsx         # Landing page (authenticated members)
-│   ├── login/           # Google OAuth + email/password login
-│   ├── profile/         # Member profile: view and update personal data
+│   ├── login/           # Login, password recovery and new-password pages
+│   ├── profile/         # Member profile, credentials and account deletion
 │   ├── eventi/          # Event calendar, RSVP, admin event creation and totals
 │   ├── iscritti/        # Member directory + admin profile editing/deletion
 │   ├── richieste/       # Generic requests form + admin secretariat board
 │   ├── api/             # Server-side route handlers (account deletion)
 │   ├── privacy/         # Public privacy policy (plain Italian)
 │   └── globals.css      # Tailwind & global styles
-├── components/          # Shared UI: auth provider/guard, header, footer, icons, dialogs
+├── components/          # Shared UI: auth screens/forms, header, footer, icons, dialogs
 ├── lib/
 │   ├── supabase.ts      # Initialized singleton browser Supabase client
 │   ├── supabase-admin.ts # Server-only Supabase client for Auth admin API
+│   ├── auth-actions.ts  # Password recovery, credentials and Italian auth errors
 │   ├── profile.ts       # Profile types and read/upsert/admin/delete helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
 │   ├── requests.ts      # Generic request types, formatting and data helpers
@@ -83,12 +84,39 @@ In the Supabase dashboard:
 2. **Authentication → Providers → Google**: add the OAuth Client ID and Client
    Secret from Google Cloud Console.
 3. **Authentication → URL Configuration**: set the Site URL and add the app
-   origins to **Redirect URLs**:
+   origins **and the recovery page** to **Redirect URLs**:
    - `http://localhost:3000`
+   - `http://localhost:3000/login/reset-password`
    - `https://<your-production-domain>`
+   - `https://<your-production-domain>/login/reset-password`
 
 The app redirects OAuth and email-confirmation links back to the site origin;
-Supabase must allow that origin or the redirect is rejected.
+the recovery email points to `/login/reset-password`. Supabase must allow both
+the origin and that path or the redirect is rejected.
+
+### Password recovery and credential management
+
+- `/login/forgot` requests a reset email with
+  `supabase.auth.resetPasswordForEmail(email, { redirectTo })`. It always shows
+  a generic confirmation so the page does not reveal whether an email is
+  registered.
+- The recovery link lands on `/login/reset-password`. The browser Supabase
+  client has `detectSessionInUrl` enabled, so the implicit-flow hash creates a
+  temporary recovery session; the page then calls
+  `supabase.auth.updateUser({ password })`. Expired or reused links show an
+  Italian error with a shortcut to request a new one.
+- `/profile` → **Sicurezza e credenziali** lets email/password users change
+  their password or request an email change. Email changes require the
+  confirmation link sent by Supabase before the new address becomes active.
+- Google OAuth users do not see the password/email forms: the page explains
+  that credentials are managed by their Google account. The forgot-password
+  page shows the same warning.
+- Supabase's default email service is limited to about 2 messages per hour and
+  is intended for testing; configure **Custom SMTP** before relying on password
+  recovery in production.
+- All auth errors (weak password, expired recovery token, email already in use,
+  rate limits, expired session, etc.) are translated in
+  `lib/auth-actions.ts`.
 
 ### 4. Run the development server
 
@@ -290,4 +318,8 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Requests page returns "permission denied" (42501) or an empty list** — apply the Phase 1E migration with `npm run db:push`. It grants API access to `generic_requests`, keeps member reads scoped to their own rows, and allows administrators to update only the request status.
 - **Delete account fails with a server configuration message** — set `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) in `.env.local` and the hosting provider, then restart `next dev` or rebuild. The variable is server-only and must not use the `NEXT_PUBLIC_` prefix.
 - **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs and requests survive.
+- **Password recovery email never arrives** — verify that `http://localhost:3000/login/reset-password` (and its production equivalent) is in **Authentication → URL Configuration → Redirect URLs**, that Custom SMTP is configured outside local testing, and that the default rate limit has not been reached. Check the spam folder too.
+- **Recovery link says it is invalid or expired** — links are single-use and time-limited. Request a new one from `/login/forgot`; also confirm the reset page is allowed in the Supabase redirect URLs.
+- **Google users cannot change their password in the portal** — expected: accounts whose primary provider is Google manage credentials in their Google account. The profile and recovery pages show a dedicated notice.
+- **Email change is not active yet** — open the confirmation link Supabase sends to the new address (and, when secure email change is enabled, to the current one). The old address remains active until confirmation.
 - **CLI cannot link** — make sure you passed the project ref: `npx supabase link --project-ref <REF_ID>` (see the dashboard URL).
