@@ -13,7 +13,17 @@ import {
   updateMemberProfile,
   type Member,
 } from "@/lib/profile";
-import { AlertCircleIcon, TrashIcon, XIcon } from "@/components/icons";
+import {
+  downloadUserDataExport,
+  fetchUserDataExport,
+  type ExportFormat,
+} from "@/lib/data-export";
+import {
+  AlertCircleIcon,
+  DownloadIcon,
+  TrashIcon,
+  XIcon,
+} from "@/components/icons";
 
 type MemberEditDialogProps = {
   member: Member;
@@ -59,6 +69,10 @@ export function MemberEditDialog({
   );
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(
+    null,
+  );
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -156,6 +170,29 @@ export function MemberEditDialog({
     }
 
     onSaved(updatedMember);
+  }
+
+  async function handleExport(format: ExportFormat) {
+    if (exportingFormat) return;
+
+    setExportError(null);
+    setExportingFormat(format);
+
+    const { data, error: exportRequestError } = await fetchUserDataExport(
+      member.id,
+    );
+
+    if (exportRequestError || !data) {
+      setExportError(
+        exportRequestError ??
+          "Impossibile preparare l’esportazione. Riprova tra poco.",
+      );
+      setExportingFormat(null);
+      return;
+    }
+
+    downloadUserDataExport(data, format, member.full_name ?? "socio");
+    setExportingFormat(null);
   }
 
   return (
@@ -343,6 +380,94 @@ export function MemberEditDialog({
             </div>
           </div>
         </form>
+
+        <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <DownloadIcon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                Esporta dati del socio
+              </p>
+              <p className="mt-1 text-sm leading-6 text-emerald-800 dark:text-emerald-200">
+                Scarica scheda, email, risposte agli eventi, richieste e
+                consensi privacy di{" "}
+                {member.full_name?.trim() || "questo iscritto"}. Utile per
+                rispondere a una richiesta di accesso o portabilità.
+              </p>
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                  disabled={exportingFormat !== null || isSaving}
+                  onClick={() => handleExport("json")}
+                  type="button"
+                >
+                  {exportingFormat === "json" ? (
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                    />
+                  ) : (
+                    <DownloadIcon className="h-4 w-4" />
+                  )}
+                  {exportingFormat === "json"
+                    ? "Preparazione…"
+                    : "Scarica JSON"}
+                </button>
+
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3.5 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900 dark:bg-zinc-950 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                  disabled={exportingFormat !== null || isSaving}
+                  onClick={() => handleExport("text")}
+                  type="button"
+                >
+                  {exportingFormat === "text" ? (
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-700 dark:border-emerald-800 dark:border-t-emerald-300"
+                    />
+                  ) : (
+                    <DownloadIcon className="h-4 w-4" />
+                  )}
+                  {exportingFormat === "text"
+                    ? "Preparazione…"
+                    : "Scarica testo"}
+                </button>
+
+                <button
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-white px-3.5 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-emerald-900 dark:bg-zinc-950 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                  disabled={exportingFormat !== null || isSaving}
+                  onClick={() => handleExport("html")}
+                  type="button"
+                >
+                  {exportingFormat === "html" ? (
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-700 dark:border-emerald-800 dark:border-t-emerald-300"
+                    />
+                  ) : (
+                    <DownloadIcon className="h-4 w-4" />
+                  )}
+                  {exportingFormat === "html"
+                    ? "Preparazione…"
+                    : "Scarica HTML"}
+                </button>
+              </div>
+
+              {exportError ? (
+                <div
+                  className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  role="alert"
+                >
+                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{exportError}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
 
         <div className="mt-6 rounded-2xl border border-red-200 bg-red-50/70 p-4 dark:border-red-900 dark:bg-red-950/30">
           <div className="flex items-start gap-3">

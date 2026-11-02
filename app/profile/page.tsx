@@ -22,12 +22,18 @@ import {
   saveProfile,
   type Profile,
 } from "@/lib/profile";
+import {
+  downloadUserDataExport,
+  fetchUserDataExport,
+  type ExportFormat,
+} from "@/lib/data-export";
 import { supabase } from "@/lib/supabase";
 import {
   AlertCircleIcon,
   ArrowRightIcon,
   CheckCircleIcon,
   ClockIcon,
+  DownloadIcon,
   ShieldCheckIcon,
   TrashIcon,
 } from "@/components/icons";
@@ -101,6 +107,10 @@ function ProfileContent() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveNotice, setSaveNotice] = useState<string | null>(null);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!userId) return;
@@ -222,6 +232,26 @@ function ProfileContent() {
     await signOut();
     router.replace("/login");
     router.refresh();
+  }
+
+  async function handleExport(format: ExportFormat) {
+    if (!userId || exportingFormat) return;
+
+    setExportError(null);
+    setExportingFormat(format);
+
+    const { data, error } = await fetchUserDataExport(userId);
+
+    if (error || !data) {
+      setExportError(
+        error ?? "Impossibile preparare l’esportazione. Riprova tra poco.",
+      );
+      setExportingFormat(null);
+      return;
+    }
+
+    downloadUserDataExport(data, format, displayName);
+    setExportingFormat(null);
   }
 
   return (
@@ -464,6 +494,107 @@ function ProfileContent() {
               </form>
             </>
           )}
+        </section>
+
+        <section className="mt-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="max-w-2xl">
+              <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+                Esporta i miei dati
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                Scarica una copia dei dati collegati al tuo account: scheda
+                personale, email, risposte agli eventi, richieste alla
+                segreteria e storico dei consensi privacy.
+              </p>
+            </div>
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <DownloadIcon className="h-5 w-5" />
+            </span>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+              disabled={exportingFormat !== null}
+              onClick={() => handleExport("json")}
+              type="button"
+            >
+              {exportingFormat === "json" ? (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                />
+              ) : (
+                <DownloadIcon className="h-4 w-4" />
+              )}
+              {exportingFormat === "json"
+                ? "Preparazione…"
+                : "Scarica JSON"}
+            </button>
+
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              disabled={exportingFormat !== null}
+              onClick={() => handleExport("text")}
+              type="button"
+            >
+              {exportingFormat === "text" ? (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700 dark:border-zinc-600 dark:border-t-zinc-200"
+                />
+              ) : (
+                <DownloadIcon className="h-4 w-4" />
+              )}
+              {exportingFormat === "text"
+                ? "Preparazione…"
+                : "Scarica testo"}
+            </button>
+
+            <button
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              disabled={exportingFormat !== null}
+              onClick={() => handleExport("html")}
+              type="button"
+            >
+              {exportingFormat === "html" ? (
+                <span
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-700 dark:border-zinc-600 dark:border-t-zinc-200"
+                />
+              ) : (
+                <DownloadIcon className="h-4 w-4" />
+              )}
+              {exportingFormat === "html"
+                ? "Preparazione…"
+                : "Scarica HTML"}
+            </button>
+          </div>
+
+          {exportError ? (
+            <div
+              className="mt-4 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+              role="alert"
+            >
+              <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{exportError}</span>
+            </div>
+          ) : null}
+
+          <p className="mt-4 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+            Il formato JSON è adatto alla portabilità verso altri servizi. Il
+            formato testo è leggibile in qualsiasi programma, mentre l’HTML è
+            pronto per la stampa o per l’invio via email. Per sapere come
+            trattiamo i dati, consulta l’
+            <Link
+              className="font-medium text-emerald-700 underline underline-offset-2 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
+              href="/privacy"
+            >
+              informativa privacy
+            </Link>
+            .
+          </p>
         </section>
 
         <SecurityCredentials user={user} />

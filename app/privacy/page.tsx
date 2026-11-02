@@ -6,6 +6,9 @@ import {
   CheckCircleIcon,
   ShieldCheckIcon,
 } from "@/components/icons";
+import { getOrganizationSettings } from "@/lib/organization";
+import { PRIVACY_PAGE_LAST_MODIFIED } from "@/lib/generated/privacy-page-meta";
+import { PRIVACY_POLICY_VERSION } from "@/lib/privacy";
 
 export const metadata: Metadata = {
   title: "Informativa privacy — Gruppo Alpini",
@@ -15,12 +18,52 @@ export const metadata: Metadata = {
 
 const summaryItems = [
   "I dati servono solo per organizzare la vita del gruppo e le sue attività.",
-  "La lista iscritti è visibile esclusivamente ai soci che hanno effettuato l’accesso.",
+  "La lista iscritti è visibile esclusivamente ai soci che hanno effettuato l'accesso.",
   "Le tue risposte agli eventi sono visibili a te e agli amministratori del gruppo.",
   "Non vendiamo i dati e non li usiamo per pubblicità o per studiare le tue abitudini.",
 ];
 
-export default function PrivacyPage() {
+const dateFormatter = new Intl.DateTimeFormat("it-IT", {
+  dateStyle: "long",
+  timeZone: "Europe/Rome",
+});
+
+function latestDate(values: Array<string | null>): string | null {
+  let latestTime = Number.NEGATIVE_INFINITY;
+  let latestValue: string | null = null;
+
+  for (const value of values) {
+    if (!value) continue;
+
+    const time = Date.parse(value);
+    if (Number.isNaN(time)) continue;
+
+    if (time > latestTime) {
+      latestTime = time;
+      latestValue = value;
+    }
+  }
+
+  return latestValue;
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return "non disponibile";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "non disponibile";
+
+  return dateFormatter.format(date);
+}
+
+export default async function PrivacyPage() {
+  const organization = await getOrganizationSettings();
+  const lastUpdated = formatDate(
+    latestDate([organization.updatedAt, PRIVACY_PAGE_LAST_MODIFIED]),
+  );
+  const contactEmail = organization.contactEmail;
+  const dpoEmail = organization.dpoEmail;
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <header className="border-b border-zinc-200/80 bg-white/85 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/85">
@@ -50,7 +93,8 @@ export default function PrivacyPage() {
             Pagina pubblica
           </span>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Ultimo aggiornamento: 1 novembre 2026
+            Ultimo aggiornamento: {lastUpdated} · Versione{" "}
+            {PRIVACY_POLICY_VERSION}
           </p>
         </div>
 
@@ -66,7 +110,7 @@ export default function PrivacyPage() {
 
         <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-            In breve
+            In sintesi
           </h2>
           <ul className="mt-4 space-y-3">
             {summaryItems.map((item) => (
@@ -81,6 +125,57 @@ export default function PrivacyPage() {
         </section>
 
         <div className="mt-10 space-y-9">
+          <section>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Titolare del trattamento
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Il titolare del trattamento dei dati personali è:
+            </p>
+            <div className="mt-3 rounded-lg bg-zinc-50 p-4 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              <p className="font-medium">{organization.organizationName}</p>
+              <p className="mt-1">
+                Sede:{" "}
+                {organization.address ?? (
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    indirizzo non ancora pubblicato
+                  </span>
+                )}
+              </p>
+              <p className="mt-1">
+                Email di contatto:{" "}
+                {contactEmail ? (
+                  <a
+                    className="text-emerald-700 underline dark:text-emerald-400"
+                    href={`mailto:${contactEmail}`}
+                  >
+                    {contactEmail}
+                  </a>
+                ) : (
+                  <span className="text-zinc-500 dark:text-zinc-400">
+                    non ancora pubblicata
+                  </span>
+                )}
+              </p>
+              {dpoEmail ? (
+                <p className="mt-1">
+                  Email del DPO:{" "}
+                  <a
+                    className="text-emerald-700 underline dark:text-emerald-400"
+                    href={`mailto:${dpoEmail}`}
+                  >
+                    {dpoEmail}
+                  </a>
+                </p>
+              ) : null}
+            </div>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Puoi contattare il titolare in qualsiasi momento per esercitare i
+              tuoi diritti o porre domande sui trattamenti descritti in questa
+              informativa.
+            </p>
+          </section>
+
           <section>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Quali dati raccogliamo
@@ -130,6 +225,30 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Base giuridica del trattamento
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Il trattamento dei tuoi dati personali si basa su:
+            </p>
+            <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-zinc-600 marker:text-emerald-600 dark:text-zinc-300 dark:marker:text-emerald-400">
+              <li>
+                <strong>Esecuzione del contratto</strong>: per gestire
+                l’iscrizione al gruppo, la lista soci e la partecipazione agli
+                eventi;
+              </li>
+              <li>
+                <strong>Interesse legittimo</strong>: per garantire la sicurezza
+                del portale, gestire log di accesso e manutenzione tecnica;
+              </li>
+              <li>
+                <strong>Consenso</strong>: per i dati opzionali (data di nascita,
+                anno di leva, luogo di servizio) che inserisci volontariamente.
+              </li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Come funziona l’accesso
             </h2>
             <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
@@ -151,6 +270,91 @@ export default function PrivacyPage() {
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               Non conserviamo la tua password in chiaro.
             </p>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Al primo accesso ti chiediamo di accettare questa informativa.
+              Finché non la accetti, il portale non ti mostra i dati dei soci. Il
+              consenso viene registrato con data e versione dell’informativa e
+              conservato nello storico dei consensi.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Fornitori tecnici (Responsabili del trattamento)
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Per far funzionare il portale ci affidiamo a servizi esterni. Questi
+              fornitori agiscono come responsabili del trattamento e hanno accesso
+              limitato ai dati necessari per il servizio:
+            </p>
+            <div className="mt-3 space-y-4 rounded-lg bg-zinc-50 p-4 text-sm text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+              <div className="border-l-2 border-emerald-400 pl-3">
+                <p className="font-medium">Google LLC</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Autenticazione OAuth
+                </p>
+                <p className="mt-1 text-xs">Sede: USA / Irlanda</p>
+                <p className="mt-1 text-xs">Dati: email, nome, ID utente</p>
+                <p className="mt-1 text-xs">
+                  <a
+                    className="text-emerald-700 underline dark:text-emerald-400"
+                    href="https://policies.google.com/privacy"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Privacy Policy
+                  </a>
+                </p>
+              </div>
+              <div className="border-l-2 border-emerald-400 pl-3">
+                <p className="font-medium">Supabase Ltd.</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Database e autenticazione
+                </p>
+                <p className="mt-1 text-xs">Sede: Regno Unito / Irlanda</p>
+                <p className="mt-1 text-xs">
+                  Dati: email, token sessioni, log accessi
+                </p>
+                <p className="mt-1 text-xs">
+                  <a
+                    className="text-emerald-700 underline dark:text-emerald-400"
+                    href="https://supabase.com/privacy"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Privacy Policy
+                  </a>
+                </p>
+              </div>
+              <div className="border-l-2 border-emerald-400 pl-3">
+                <p className="font-medium">Vercel Inc.</p>
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  Hosting e CDN
+                </p>
+                <p className="mt-1 text-xs">Sede: USA</p>
+                <p className="mt-1 text-xs">
+                  Dati: indirizzi IP, user-agent, timestamp richieste (conservati
+                  fino a 30 giorni)
+                </p>
+                <p className="mt-1 text-xs">
+                  <a
+                    className="text-emerald-700 underline dark:text-emerald-400"
+                    href="https://vercel.com/legal/privacy-policy"
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  >
+                    Privacy Policy
+                  </a>
+                </p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Alcuni fornitori possono trasferire i dati fuori dallo Spazio
+              Economico Europeo. In questi casi utilizziamo le{" "}
+              <strong>Clausole Contrattuali Standard</strong> (Standard
+              Contractual Clauses - SCC) approvate dalla Commissione Europea per
+              garantire una protezione adeguata dei dati personali.
+            </p>
           </section>
 
           <section>
@@ -158,11 +362,12 @@ export default function PrivacyPage() {
               Chi può vedere i dati
             </h2>
             <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-              La lista iscritti è riservata ai soci autenticati. Ogni socio può
-              vedere nome, data di nascita, anno di leva e luogo di servizio
-              degli altri soci. Gli amministratori possono modificare le schede
-              per mantenerle corrette. La lista non è pubblica e non viene
-              condivisa con persone esterne al gruppo.
+              La lista iscritti è riservata ai soci autenticati che hanno
+              accettato questa informativa. Ogni socio può vedere nome, data di
+              nascita, anno di leva e luogo di servizio degli altri soci. Gli
+              amministratori possono modificare le schede per mantenerle
+              corrette. La lista non è pubblica e non viene condivisa con persone
+              esterne al gruppo.
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               Per gli eventi, ogni socio vede soltanto la propria risposta. Gli
@@ -170,12 +375,6 @@ export default function PrivacyPage() {
               (presente, in forse o assente), compresi i soci che non hanno
               ancora risposto, per organizzare l’incontro. Anche questi dati non
               sono pubblici.
-            </p>
-            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-              Per far funzionare il portale ci appoggiamo a fornitori tecnici:
-              Supabase per database e accesso, Google per l’accesso con Google e
-              il nostro servizio di hosting. Questi fornitori trattano i dati
-              solo per far funzionare il servizio e non li usano per pubblicità.
             </p>
           </section>
 
@@ -186,12 +385,14 @@ export default function PrivacyPage() {
             <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               I dati sono conservati nel database Supabase. L’accesso è protetto
               da regole di sicurezza che limitano lettura e modifica ai soci
-              autenticati e agli amministratori. Le comunicazioni con il portale
-              viaggiano su collegamenti protetti.
+              autenticati che hanno accettato l’informativa e agli
+              amministratori. Le comunicazioni con il portale viaggiano su
+              collegamenti protetti (HTTPS/TLS).
             </p>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-              Nessun sistema è sicuro al 100%, ma facciamo attenzione a limitare
-              l’accesso ai soli dati necessari.
+              Nessun sistema è sicuro al 100%, ma adottiamo misure ragionevoli
+              per limitare l’accesso ai soli dati necessari e proteggere le
+              informazioni dagli accessi non autorizzati.
             </p>
           </section>
 
@@ -212,6 +413,47 @@ export default function PrivacyPage() {
               tua email, per mantenere le statistiche storiche del gruppo. Se un
               evento viene eliminato, vengono rimosse anche le risposte collegate.
             </p>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Lo storico dei consensi privacy viene conservato per dimostrare
+              quando e per quale versione dell’informativa hai dato il consenso.
+              Viene eliminato insieme all’account.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Rimozione o anonimizzazione da parte degli amministratori
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              <strong>
+                Su tua richiesta o quando previsto dalle specifiche regole
+                associative, gli amministratori dell’associazione possono
+                eliminare definitivamente il tuo account e i dati collegati
+                oppure anonimizzare i record storici
+              </strong>{" "}
+              (ad esempio risposte agli eventi e richieste alla segreteria), in
+              modo che non siano più riconducibili alla tua persona. In ogni caso
+              non sarà più possibile risalire alla tua identità dai dati
+              conservati per le statistiche del gruppo.
+            </p>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Puoi chiedere la rimozione o l’anonimizzazione contattando il
+              titolare del trattamento
+              {contactEmail ? (
+                <>
+                  {" "}
+                  all’indirizzo{" "}
+                  <a
+                    className="text-emerald-700 underline dark:text-emerald-400"
+                    href={`mailto:${contactEmail}`}
+                  >
+                    {contactEmail}
+                  </a>
+                </>
+              ) : null}{" "}
+              oppure, se hai un account, inviando una richiesta dalla sezione
+              Richieste del portale.
+            </p>
           </section>
 
           <section>
@@ -219,26 +461,90 @@ export default function PrivacyPage() {
               I tuoi diritti
             </h2>
             <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-              Puoi:
+              Ai sensi del GDPR, puoi esercitare i seguenti diritti contattando
+              il titolare del trattamento:
             </p>
             <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-6 text-zinc-600 marker:text-emerald-600 dark:text-zinc-300 dark:marker:text-emerald-400">
-              <li>vedere e aggiornare i tuoi dati dalla pagina Profilo;</li>
               <li>
-                vedere e aggiornare la tua risposta a un evento dalla pagina
-                Eventi;
-              </li>
-              <li>chiedere la correzione di dati sbagliati;</li>
-              <li>
-                eliminare direttamente il tuo account dalla pagina Profilo;
+                <strong>Diritto di accesso</strong>: sapere quali dati abbiamo su
+                di te;
               </li>
               <li>
-                chiedere a un amministratore di eliminare l’account di un socio;
+                <strong>Diritto di rettifica</strong>: correggere dati errati;
               </li>
-              <li>chiedere informazioni su come trattiamo i dati.</li>
+              <li>
+                <strong>Diritto alla cancellazione</strong> (diritto all’oblio):
+                eliminare il tuo account;
+              </li>
+              <li>
+                <strong>Diritto alla portabilità</strong>: ricevere i tuoi dati in
+                formato strutturato;
+              </li>
+              <li>
+                <strong>Diritto di opposizione</strong>: opporsi al trattamento in
+                determinate circostanze;
+              </li>
+              <li>
+                <strong>Diritto di limitazione</strong>: limitare il trattamento
+                in attesa di verifica.
+              </li>
             </ul>
             <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
-              Per esercitare questi diritti, contatta un amministratore del
-              gruppo. Risponderemo il prima possibile.
+              Se hai un account, puoi scaricare una copia dei tuoi dati dalla
+              pagina Profilo con il pulsante <strong>Esporta i miei dati</strong>
+              . Puoi anche eliminare direttamente il tuo account dalla stessa
+              pagina.
+            </p>
+            {contactEmail ? (
+              <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                Per esercitare questi diritti, contatta il titolare via email a{" "}
+                <a
+                  className="text-emerald-700 underline dark:text-emerald-400"
+                  href={`mailto:${contactEmail}`}
+                >
+                  {contactEmail}
+                </a>
+                . Risponderemo entro 30 giorni.
+              </p>
+            ) : (
+              <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                Per esercitare questi diritti, contatta gli amministratori del
+                gruppo. L’indirizzo email del titolare sarà pubblicato su questa
+                pagina non appena configurato. Risponderemo entro 30 giorni.
+              </p>
+            )}
+            {dpoEmail ? (
+              <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+                Per questioni relative alla protezione dei dati puoi scrivere al
+                DPO all’indirizzo{" "}
+                <a
+                  className="text-emerald-700 underline dark:text-emerald-400"
+                  href={`mailto:${dpoEmail}`}
+                >
+                  {dpoEmail}
+                </a>
+                .
+              </p>
+            ) : null}
+          </section>
+
+          <section>
+            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+              Reclamo all’autorità
+            </h2>
+            <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              Se ritieni che i tuoi diritti siano stati violati, puoi presentare
+              reclamo al Garante per la Protezione dei Dati Personali:
+            </p>
+            <p className="mt-3 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
+              <a
+                className="text-emerald-700 underline dark:text-emerald-400"
+                href="https://www.garanteprivacy.it"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                www.garanteprivacy.it
+              </a>
             </p>
           </section>
 
@@ -261,7 +567,9 @@ export default function PrivacyPage() {
             <p className="mt-2 text-sm leading-7 text-zinc-600 dark:text-zinc-300">
               Possiamo aggiornare questa pagina se cambiano le funzioni del
               portale o il modo in cui trattiamo i dati. La data in alto indica
-              l’ultima modifica.
+              l’ultima modifica. Se le modifiche incidono sul trattamento dei
+              dati personali, ti chiederemo di accettare la nuova versione al
+              prossimo accesso.
             </p>
           </section>
         </div>
@@ -271,8 +579,24 @@ export default function PrivacyPage() {
             Hai una domanda?
           </h2>
           <p className="mt-1 text-sm leading-6 text-emerald-800 dark:text-emerald-200">
-            Parla con un amministratore del Gruppo Alpini. Saremo felici di
-            spiegarti come usiamo i dati.
+            {contactEmail ? (
+              <>
+                Contatta il titolare del trattamento a{" "}
+                <a
+                  className="font-medium underline"
+                  href={`mailto:${contactEmail}`}
+                >
+                  {contactEmail}
+                </a>
+                . Saremo felici di spiegarti come usiamo i dati.
+              </>
+            ) : (
+              <>
+                Contatta gli amministratori del gruppo: l’indirizzo email del
+                titolare sarà pubblicato qui non appena configurato. Saremo
+                felici di spiegarti come usiamo i dati.
+              </>
+            )}
           </p>
           <Link
             className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-800 underline-offset-4 transition hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:text-emerald-300"

@@ -218,6 +218,15 @@ export function ClockIcon({ className }: IconProps) {
   );
 }
 
+export function DownloadIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M12 3v12M7 10l5 5 5-5" />
+      <path d="M5 21h14" />
+    </IconBase>
+  );
+}
+
 export function GoogleIcon({ className }: IconProps) {
   return (
     <svg

@@ -26,7 +26,7 @@ gruppo-alpini/
 │   ├── iscritti/        # Member directory + admin profile editing/deletion
 │   ├── richieste/       # Generic requests form + admin secretariat board
 │   ├── api/             # Server-side route handlers (account deletion)
-│   ├── privacy/         # Public privacy policy (plain Italian)
+│   ├── privacy/         # Public, server-rendered privacy policy
 │   └── globals.css      # Tailwind & global styles
 ├── components/          # Shared UI: auth screens/forms, header, footer, icons, dialogs
 ├── lib/
@@ -36,7 +36,13 @@ gruppo-alpini/
 │   ├── profile.ts       # Profile types and read/upsert/admin/delete helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
 │   ├── requests.ts      # Generic request types, formatting and data helpers
+│   ├── consent.ts       # Privacy consent check and acceptance
+│   ├── data-export.ts   # GDPR JSON/HTML export, formatting and download
+│   ├── organization.ts  # Cached public organization settings for /privacy
+│   ├── privacy.ts       # Privacy policy version and path
 │   └── display.ts       # Display-name and initials helpers
+├── scripts/
+│   └── generate-privacy-meta.mjs # Last-modified metadata for /privacy
 ├── supabase/
 │   ├── config.toml      # Local Supabase stack configuration (CLI)
 │   └── migrations/      # Version-controlled SQL migrations
@@ -74,6 +80,10 @@ call the Supabase Auth admin API when a member deletes their account or an
 administrator deletes another member. A newer Supabase secret key
 (`sb_secret_…`) can be provided instead as `SUPABASE_SECRET_KEY`. Account
 deletion is unavailable until one of these two variables is set.
+
+The privacy consent flow and the GDPR data export do **not** need the service
+key: consent is written to `user_consents` under RLS, and exports call the
+`export_user_data` RPC with the member's own session.
 
 ### 3. Configure authentication
 
@@ -138,7 +148,10 @@ the public `/privacy` page.
   the directory. Non-admin members only see the read-only list. Supabase RLS is
   the real authorization boundary; the UI check is only for convenience.
 - `/privacy` is public (no login required) so it can be linked from the login
-  page and satisfies OAuth provider requirements.
+  page and satisfies OAuth provider requirements. It is a server-rendered page:
+  crawlers and visitors without JavaScript can read the full policy. Controller
+  details and the policy date are described in
+  [Privacy, consent and data portability](#privacy-consent-and-data-portability).
 
 ### Events and RSVP
 
@@ -216,6 +229,95 @@ SQL session; the temporary service-role claim is the database-owner escape hatch
   event attendance totals remain correct; the UI labels them **Socio eliminato**.
 - Removing an event still deletes its responses, as before.
 
+### Privacy, consent and data portability
+
+#### Dynamic public privacy page
+
+- `/privacy` is not wrapped in `AuthGuard` and there is no middleware, so it is
+  reachable by anonymous visitors, crawlers and browsers with JavaScript
+  disabled. The route is prerendered and revalidated hourly.
+- The data controller details come from the single-row
+  `public.organization_settings` table. Set them once from the Supabase SQL
+  editor (the service role or dashboard already has the necessary privileges):
+
+  ```sql
+  update public.organization_settings
+  set organization_name = 'Gruppo Alpini — Sezione di …',
+      address = 'Via …',
+      contact_email = 'segreteria@example.it',
+      dpo_email = 'dpo@example.it'
+  where id = true;
+  ```
+
+  `updated_at` is refreshed automatically. Empty address/email fields render a
+  neutral “non ancora pubblicato” fallback instead of inventing contact data.
+- The “Ultimo aggiornamento” date is the **maximum** between the settings row's
+  `updated_at` and the last modification of `app/privacy/page.tsx`.
+  `scripts/generate-privacy-meta.mjs` runs automatically before `dev`, `build`
+  and `typecheck`, uses the git commit date for a clean file and the file mtime
+  for uncommitted edits, and writes the git-ignored
+  `lib/generated/privacy-page-meta.ts`.
+- When the policy text changes, update `PRIVACY_POLICY_VERSION` in
+  `lib/privacy.ts`. Members whose latest consent refers to an older version are
+  asked to accept the new one at their next visit.
+
+#### Mandatory first-time consent
+
+- After email/password signup, email confirmation or Google login,
+  `AuthProvider` checks `user_consents` for the current policy version. If no
+  matching row exists, `AuthGuard` replaces the requested page with the blocking
+  **Consenso necessario** screen.
+- The checkbox links directly to `/privacy` and the **Accetta e continua**
+  button stays disabled until it is checked. Acceptance inserts an append-only
+  row with the policy version; the database forces `accepted_at = now()`.
+- Refusing does not grant access. The screen offers **Esci senza accettare** and
+  **Elimina il mio account** (the same typed confirmation dialog used on the
+  profile page). Signing out leaves the account blocked; an administrator can
+  delete it later from `/iscritti`.
+- Instead of relying only on the client gate, restrictive RLS policies call
+  `has_accepted_privacy_consent()` on `profiles`, `events`, `event_responses`,
+  `generic_requests`, `purchase_items` and `purchase_orders`. An unconsented
+  authenticated account cannot read or write member data even through direct
+  PostgREST calls. Existing members are asked to accept once after this
+  migration is applied — this is expected.
+- To find accounts that signed up but never accepted (for example after an
+  abandoned registration), run this query in the Supabase SQL editor and delete
+  the relevant rows from `/iscritti`:
+
+  ```sql
+  select p.id, p.full_name
+  from public.profiles p
+  left join public.user_consents c on c.user_id = p.id
+  where c.user_id is null
+  order by p.updated_at;
+  ```
+
+#### Data export (access and portability)
+
+- `/profile` → **Esporta i miei dati** downloads the signed-in member's data.
+  The same buttons are available to administrators in **Iscritti → Modifica**
+  for the selected member, so a request can be fulfilled offline.
+- The export includes:
+  - profile fields (name, birth date, enlistment year, service place, admin
+    flag, last update);
+  - auth user ID, email, creation/confirmation dates and last sign-in;
+  - every event RSVP with event title, date, location and Italian status label;
+  - every generic request with message, creation date and resolution status;
+  - the full privacy-consent history (version and acceptance timestamp).
+- Three formats are offered: **JSON** for portability, plain **text** for email
+  or quick reading, and a standalone, print-ready **HTML** document for paper
+  delivery. All are generated in the browser from data returned by the server.
+- The export is produced by the `export_user_data(uuid)` SECURITY DEFINER RPC.
+  It authorizes the caller explicitly: a member can export only their own data,
+  while an administrator who has accepted the policy can export any member's
+  data. The browser never needs the service role key.
+- The migration that adds the settings table, consent history, restrictive
+  policies and export RPC is
+  `supabase/migrations/20261102000000_gdpr_privacy_consent_and_data_export.sql`;
+  `20261102010000_gdpr_export_consent_guard.sql` closes the remaining
+  SECURITY DEFINER admin bypasses. Apply both **before** deploying the frontend
+  that expects them.
+
 ---
 
 ## Database migrations (Supabase CLI)
@@ -276,6 +378,7 @@ Write the SQL, then `npm run db:push` (cloud) or `npm run db:reset` (local).
 | `npm run start`        | Serve the production build                              |
 | `npm run lint`         | Run ESLint                                              |
 | `npm run typecheck`    | Type-check with `tsc --noEmit`                          |
+| `npm run privacy:meta` | Regenerate the `/privacy` last-modified metadata         |
 | `npm run db:*`         | Supabase CLI helpers (`start`, `link`, `push`, …)       |
 
 ## Debugging (VS Code)
@@ -304,8 +407,9 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 
 > The publishable key is safe to expose to the browser (`NEXT_PUBLIC_*`) — Row
 > Level Security (RLS) is what protects your data. Member data is readable only
-> by authenticated users; admin-only writes and event response visibility are
-> enforced by the policies in `supabase/migrations/`.
+> by authenticated users who have accepted the privacy policy; admin-only writes
+> and event response visibility are enforced by the policies in
+> `supabase/migrations/`.
 
 ## Troubleshooting
 
@@ -317,6 +421,11 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Admin cannot edit or delete an event** — apply all pending migrations with `npm run db:push`. The Phase 1D delete migration adds the admin-only `DELETE` grant/policy, while editing relies on the existing admin `UPDATE` policy.
 - **Requests page returns "permission denied" (42501) or an empty list** — apply the Phase 1E migration with `npm run db:push`. It grants API access to `generic_requests`, keeps member reads scoped to their own rows, and allows administrators to update only the request status.
 - **Delete account fails with a server configuration message** — set `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) in `.env.local` and the hosting provider, then restart `next dev` or rebuild. The variable is server-only and must not use the `NEXT_PUBLIC_` prefix.
+- **Consent screen says the privacy configuration is unavailable** — apply the GDPR migration with `npm run db:push`. It creates `organization_settings` and `user_consents` and installs the restrictive RLS policies.
+- **Every existing member is asked to accept the privacy policy once** — expected after the GDPR migration. Acceptance is stored in `user_consents`; accounts that refuse remain blocked by RLS and can be deleted from `/iscritti`.
+- **Data export says the function is unavailable or permission is denied** — apply `20261102000000_gdpr_privacy_consent_and_data_export.sql` with `npm run db:push`. A member can export only their own data; an administrator profile is required for another member.
+- **The privacy page shows “non ancora pubblicato” contact details** — update the single row in `public.organization_settings` (see the section above), then wait for the hourly cache revalidation or run a new deployment.
+- **The privacy page last-updated date looks like the deployment date** — the generated metadata falls back to the file mtime when git history is unavailable (for example in a source tarball). Deploy from a git checkout to use the commit date.
 - **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs and requests survive.
 - **Password recovery email never arrives** — verify that `http://localhost:3000/login/reset-password` (and its production equivalent) is in **Authentication → URL Configuration → Redirect URLs**, that Custom SMTP is configured outside local testing, and that the default rate limit has not been reached. Check the spam folder too.
 - **Recovery link says it is invalid or expired** — links are single-use and time-limited. Request a new one from `/login/forgot`; also confirm the reset page is allowed in the Supabase redirect URLs.
