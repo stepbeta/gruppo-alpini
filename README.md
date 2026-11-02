@@ -35,7 +35,7 @@ gruppo-alpini/
 │   ├── supabase-admin.ts # Server-only Supabase client for Auth admin API
 │   ├── auth-actions.ts  # Password recovery, credentials and Italian auth errors
 │   ├── auth-redirect.ts # Safe post-login return paths and pending OAuth deep links
-│   ├── profile.ts       # Profile types and read/upsert/admin/delete helpers
+│   ├── profile.ts       # Profile/approval types, read/upsert/admin/delete helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
 │   ├── requests.ts      # Generic request types, formatting and data helpers
 │   ├── announcements.ts # Announcement banner types, visibility and CRUD helpers
@@ -142,11 +142,37 @@ redirected to the login page. After signing in, the landing page shows the
 member area, links to `/profile`, `/eventi` and `/iscritti`, and a footer link to
 the public `/privacy` page.
 
+### Closed registration and account approval
+
+- New accounts are created with `approval_status = 'pending'` by the
+  `handle_new_user` trigger. They can sign in and accept the privacy policy, but
+  `AuthGuard` shows the Italian **Account in attesa di approvazione** screen
+  instead of the portal until an administrator approves them.
+- Profiles that existed before
+  `20261102030000_member_approval_workflow.sql` are grandfathered as `approved`,
+  so current members and administrators keep working.
+- An administrator opens **Iscritti → Modifica** on a member and uses **Approva
+  iscritto** or **Rifiuta richiesta**. Approved accounts can be rejected later
+  with **Revoca approvazione**; rejected accounts can be approved again. The
+  dialog does not allow changing the administrator's own status.
+- The directory shows **In attesa** and **Rifiutato** badges to administrators,
+  and the pending-count pill filters the list to accounts waiting for a
+  decision. Regular members only receive approved profiles.
+- The client gate is UX only: restrictive RLS policies block pending and
+  rejected accounts from reading events, responses, requests, shop data and
+  announcements, or from writing member data, even through direct API calls.
+  They can still read their own profile (needed by the holding screen), manage
+  their privacy consent, export their data and delete their own account.
+- `is_current_user_approved()` treats administrators as approved so an
+  accidental status change cannot lock every administrator out of account
+  repair.
+
 ### Member directory and privacy
 
-- `/iscritti` is protected by `AuthGuard` and lists every `profiles` row with
-  name, birth date, enlistment year, and service place. The search box filters
-  by name or service place.
+- `/iscritti` is protected by `AuthGuard` and lists approved `profiles` rows
+  with name, birth date, enlistment year, and service place. Administrators also
+  receive pending and rejected accounts so they can decide on registrations.
+  The search box filters by name or service place.
 - Members with `is_admin = true` can edit any member's four profile fields from
   the directory. Non-admin members only see the read-only list. Supabase RLS is
   the real authorization boundary; the UI check is only for convenience.
@@ -176,7 +202,7 @@ the public `/privacy` page.
   events page scrolls to the matching card and highlights it as **Evento
   condiviso**; a deleted or unknown event shows a short notice instead. OAuth
   and email-confirmation round trips keep the destination in `sessionStorage`
-  until the session and privacy consent are ready.
+  until the session, privacy consent and account approval are ready.
 - Members with `is_admin = true` also see **Nuovo evento**, **Modifica**, and
   **Elimina** controls. Deletion asks for confirmation and also removes the
   event's responses. Every event card includes attendance totals plus the
@@ -462,7 +488,12 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **The privacy page last-updated date looks like the deployment date** — the generated metadata falls back to the file mtime when git history is unavailable (for example in a source tarball). Deploy from a git checkout to use the commit date.
 - **The announcement banner never appears or `/avvisi` says the table is unavailable** — apply `20261102020000_announcement_banners.sql` with `npm run db:push`, then confirm the row is active and, if it has dates, that the current time is inside the window. Inactive, scheduled and expired banners are hidden from members by RLS.
 - **A shared event link does not return to the event after login** — email/password sign-in keeps the destination in the `next` query parameter; OAuth and email confirmation keep it in `sessionStorage`. Confirm that browser storage is available and that the app origin is listed in Supabase **Authentication → URL Configuration → Redirect URLs**.
+- **A new account sees “Account in attesa di approvazione”** — expected with closed registration. Sign in as an administrator, open `/iscritti`, click **Modifica** on the pending row and choose **Approva iscritto**. The member can then press **Controlla di nuovo** or reload the page.
+- **The approval screen reports a missing profile structure, or approval controls return a permission error** — apply `20261102030000_member_approval_workflow.sql` with `npm run db:push`. It adds `approval_status`, grandfathers existing profiles as approved and installs the restrictive RLS policies.
+- **Approval buttons are missing for an account** — approval controls are visible only to administrators and are hidden for the administrator's own account. Confirm the signed-in profile has `is_admin = true`.
+- **A pending member can still reach member data through the API** — confirm the approval migration is applied and appears in `npm run db:migrations`. The restrictive policies on `profiles`, `events`, `event_responses`, `generic_requests`, `purchase_items`, `purchase_orders` and `announcement_banners` are the server-side boundary; the waiting screen is only the UI side.
 - **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs and requests survive.
+- **An administrator cannot delete another member and the API reports “permission denied for table profiles”** — apply `20261102040000_service_role_profile_access.sql` with `npm run db:push`. The server-side deletion route reads `profiles.is_admin` with the service role, and that role needs an explicit table grant.
 - **Password recovery email never arrives** — verify that `http://localhost:3000/login/reset-password` (and its production equivalent) is in **Authentication → URL Configuration → Redirect URLs**, that Custom SMTP is configured outside local testing, and that the default rate limit has not been reached. Check the spam folder too.
 - **Recovery link says it is invalid or expired** — links are single-use and time-limited. Request a new one from `/login/forgot`; also confirm the reset page is allowed in the Supabase redirect URLs.
 - **Google users cannot change their password in the portal** — expected: accounts whose primary provider is Google manage credentials in their Google account. The profile and recovery pages show a dedicated notice.

@@ -18,6 +18,7 @@ import { fetchMembers, type Member } from "@/lib/profile";
 import {
   AlertCircleIcon,
   CheckCircleIcon,
+  ClockIcon,
   MegaphoneIcon,
   PencilIcon,
   SearchIcon,
@@ -81,6 +82,7 @@ export function MembersDirectory() {
   const [reloadKey, setReloadKey] = useState(0);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
+  const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deletingMember, setDeletingMember] = useState<Member | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -122,14 +124,25 @@ export function MembersDirectory() {
 
   const filteredMembers = useMemo(() => {
     const term = normalizeSearch(deferredQuery);
-    if (!term) return sortedMembers;
 
     return sortedMembers.filter((member) => {
+      if (showPendingOnly && member.approval_status !== "pending") {
+        return false;
+      }
+
+      if (!term) return true;
+
       const name = normalizeSearch(member.full_name ?? "");
       const place = normalizeSearch(member.service_place ?? "");
       return name.includes(term) || place.includes(term);
     });
-  }, [sortedMembers, deferredQuery]);
+  }, [sortedMembers, deferredQuery, showPendingOnly]);
+
+  const pendingCount = useMemo(
+    () =>
+      members.filter((member) => member.approval_status === "pending").length,
+    [members],
+  );
 
   const hasSearch = deferredQuery.trim().length > 0;
   const hasMembers = members.length > 0;
@@ -138,17 +151,39 @@ export function MembersDirectory() {
     setEditingMember(null);
   }, []);
 
-  const handleMemberSaved = useCallback((updatedMember: Member) => {
-    setMembers((current) =>
-      current.map((member) =>
-        member.id === updatedMember.id ? updatedMember : member,
-      ),
-    );
-    setEditingMember(null);
-    setNotice(
-      `Scheda di ${updatedMember.full_name?.trim() || "questo iscritto"} aggiornata.`,
-    );
-  }, []);
+  const handleMemberSaved = useCallback(
+    (updatedMember: Member) => {
+      const previousMember = members.find(
+        (member) => member.id === updatedMember.id,
+      );
+      const displayName =
+        updatedMember.full_name?.trim() || "questo iscritto";
+
+      setMembers((current) =>
+        current.map((member) =>
+          member.id === updatedMember.id ? updatedMember : member,
+        ),
+      );
+      setEditingMember(null);
+
+      if (
+        previousMember &&
+        previousMember.approval_status !== updatedMember.approval_status
+      ) {
+        if (updatedMember.approval_status === "approved") {
+          setNotice(`L’account di ${displayName} è stato approvato.`);
+        } else if (previousMember.approval_status === "approved") {
+          setNotice(`L’accesso di ${displayName} è stato revocato.`);
+        } else {
+          setNotice(`La richiesta di ${displayName} è stata rifiutata.`);
+        }
+        return;
+      }
+
+      setNotice(`Scheda di ${displayName} aggiornata.`);
+    },
+    [members],
+  );
 
   const handleRequestDelete = useCallback((member: Member) => {
     setEditingMember(null);
@@ -219,6 +254,24 @@ export function MembersDirectory() {
                   Gestisci avvisi
                 </Link>
               ) : null}
+              {isAdmin && pendingCount > 0 ? (
+                <button
+                  aria-pressed={showPendingOnly}
+                  className={`inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold shadow-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 ${
+                    showPendingOnly
+                      ? "border-amber-500 bg-amber-500 text-amber-950 dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950"
+                      : "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
+                  }`}
+                  onClick={() => setShowPendingOnly((current) => !current)}
+                  type="button"
+                >
+                  <ClockIcon className="h-4 w-4" />
+                  {pendingCount}{" "}
+                  {pendingCount === 1
+                    ? "richiesta in attesa"
+                    : "richieste in attesa"}
+                </button>
+              ) : null}
               <p className="inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
                 <UsersIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
                 {members.length}{" "}
@@ -261,21 +314,26 @@ export function MembersDirectory() {
                 aria-live="polite"
                 className="text-sm text-zinc-500 dark:text-zinc-400"
               >
-                {hasSearch
-                  ? `${filteredMembers.length} ${
-                      filteredMembers.length === 1
-                        ? "iscritto trovato"
-                        : "iscritti trovati"
-                    } su ${members.length}`
-                  : "Digita un nome o un luogo per filtrare la lista."}
+                {showPendingOnly
+                  ? `${filteredMembers.length} account in attesa`
+                  : hasSearch
+                    ? `${filteredMembers.length} ${
+                        filteredMembers.length === 1
+                          ? "iscritto trovato"
+                          : "iscritti trovati"
+                      } su ${members.length}`
+                    : "Digita un nome o un luogo per filtrare la lista."}
               </p>
-              {query ? (
+              {query || showPendingOnly ? (
                 <button
                   className="rounded text-sm font-semibold text-emerald-700 transition hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
-                  onClick={() => setQuery("")}
+                  onClick={() => {
+                    setQuery("");
+                    setShowPendingOnly(false);
+                  }}
                   type="button"
                 >
-                  Azzera ricerca
+                  {showPendingOnly ? "Mostra tutti" : "Azzera ricerca"}
                 </button>
               ) : null}
             </div>
@@ -371,18 +429,26 @@ export function MembersDirectory() {
           >
             <SearchIcon className="mx-auto h-9 w-9 text-zinc-400 dark:text-zinc-500" />
             <h2 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Nessun iscritto trovato
+              {showPendingOnly && !hasSearch
+                ? "Nessun account in attesa"
+                : "Nessun iscritto trovato"}
             </h2>
             <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-              Non ci sono risultati per “{query.trim()}”. Prova con un altro
-              nome o un altro luogo di servizio.
+              {showPendingOnly && !hasSearch
+                ? "Tutte le richieste di registrazione sono state gestite."
+                : `Non ci sono risultati per “${query.trim()}”. Prova con un altro nome o un altro luogo di servizio.`}
             </p>
             <button
               className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-              onClick={() => setQuery("")}
+              onClick={() => {
+                setQuery("");
+                setShowPendingOnly(false);
+              }}
               type="button"
             >
-              Azzera ricerca
+              {showPendingOnly && !hasSearch
+                ? "Mostra tutti gli iscritti"
+                : "Azzera ricerca"}
             </button>
           </div>
         ) : null}
@@ -416,6 +482,18 @@ export function MembersDirectory() {
                             <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
                               <ShieldCheckIcon className="h-3.5 w-3.5" />
                               Amministratore
+                            </span>
+                          ) : null}
+                          {isAdmin && member.approval_status === "pending" ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+                              <ClockIcon className="h-3.5 w-3.5" />
+                              In attesa
+                            </span>
+                          ) : null}
+                          {isAdmin && member.approval_status === "rejected" ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full border border-red-300 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+                              <AlertCircleIcon className="h-3.5 w-3.5" />
+                              Rifiutato
                             </span>
                           ) : null}
                         </div>
@@ -475,6 +553,7 @@ export function MembersDirectory() {
       {editingMember ? (
         <MemberEditDialog
           key={editingMember.id}
+          currentUserId={userId ?? null}
           member={editingMember}
           onClose={handleCloseEditor}
           onDelete={() => handleRequestDelete(editingMember)}

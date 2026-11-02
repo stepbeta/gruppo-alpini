@@ -4,6 +4,7 @@ import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { buildLoginHref, getCurrentRedirectPath } from "@/lib/auth-redirect";
 import { useAuth } from "./auth-provider";
+import { ApprovalGate } from "./approval-gate";
 import { ConfigurationNotice } from "./configuration-notice";
 import { LoadingScreen } from "./loading-screen";
 import { PrivacyConsentGate } from "./privacy-consent-gate";
@@ -12,12 +13,14 @@ import { PrivacyConsentGate } from "./privacy-consent-gate";
  * Client-side gate for authenticated pages.
  *
  * This is a UX redirect only: Row Level Security on Supabase remains the real
- * authorization boundary for every query and mutation. The privacy gate is
- * backed by a restrictive RLS layer as well, so an account that has not
- * accepted the policy cannot read member data even through direct API calls.
+ * authorization boundary for every query and mutation. The privacy and
+ * approval gates are backed by restrictive RLS policies as well, so an account
+ * that has not accepted the policy or has not been approved cannot read member
+ * data even through direct API calls.
  */
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const { user, isLoading, isConfigured, consentStatus } = useAuth();
+  const { user, isLoading, isConfigured, consentStatus, approvalStatus } =
+    useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -40,6 +43,14 @@ export function AuthGuard({ children }: { children: ReactNode }) {
 
   if (consentStatus === "required" || consentStatus === "error") {
     return <PrivacyConsentGate />;
+  }
+
+  if (approvalStatus === "unknown" || approvalStatus === "checking") {
+    return <LoadingScreen message="Verifica dell’approvazione…" />;
+  }
+
+  if (approvalStatus !== "approved") {
+    return <ApprovalGate />;
   }
 
   return <>{children}</>;

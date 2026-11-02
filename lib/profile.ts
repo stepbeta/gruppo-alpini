@@ -1,5 +1,14 @@
 import { supabase } from "./supabase";
 
+/**
+ * Registration state for a member account.
+ *
+ * - `pending`: signed up, waiting for an administrator.
+ * - `approved`: can use the portal.
+ * - `rejected`: blocked; an administrator can reconsider the request.
+ */
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -7,6 +16,7 @@ export type Profile = {
   enlistment_year: number | null;
   service_place: string | null;
   is_admin: boolean;
+  approval_status: ApprovalStatus;
   updated_at: string;
 };
 
@@ -26,6 +36,7 @@ export type Member = Pick<
   | "enlistment_year"
   | "service_place"
   | "is_admin"
+  | "approval_status"
 >;
 
 /**
@@ -35,10 +46,10 @@ export type Member = Pick<
 export const DELETED_MEMBER_NAME = "Socio eliminato";
 
 export const PROFILE_COLUMNS =
-  "id, full_name, birth_date, enlistment_year, service_place, is_admin, updated_at";
+  "id, full_name, birth_date, enlistment_year, service_place, is_admin, approval_status, updated_at";
 
 export const MEMBER_COLUMNS =
-  "id, full_name, birth_date, enlistment_year, service_place, is_admin";
+  "id, full_name, birth_date, enlistment_year, service_place, is_admin, approval_status";
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -49,6 +60,19 @@ function errorMessage(error: unknown): string {
 export function formatProfileError(message: string): string {
   const normalized = message.toLowerCase();
 
+  if (
+    normalized.includes("only administrators can change the approval status") ||
+    normalized.includes("profiles_protect_approval_status")
+  ) {
+    return "Solo un amministratore può approvare o rifiutare un account.";
+  }
+  if (
+    normalized.includes("42703") ||
+    normalized.includes("pgrst204") ||
+    normalized.includes("does not exist")
+  ) {
+    return "La struttura del profilo non è aggiornata. Applica le migrazioni Supabase con npm run db:push.";
+  }
   if (
     normalized.includes("permission denied") ||
     normalized.includes("42501") ||
@@ -131,7 +155,8 @@ export async function saveProfile(
 /**
  * Reads every member profile for the authenticated directory.
  *
- * The Phase 1B RLS policy allows any authenticated member to select all rows.
+ * RLS returns only approved profiles to regular members. Administrators also
+ * receive pending and rejected accounts so they can decide on registrations.
  */
 export async function fetchMembers(): Promise<{
   members: Member[];
@@ -161,7 +186,8 @@ export async function fetchMembers(): Promise<{
  * Updates another member's profile.
  *
  * Only administrators pass the Phase 1C RLS policy; non-admins can only update
- * their own row through `saveProfile`. The form never sends `is_admin`.
+ * their own row through `saveProfile`. The form never sends `is_admin` or the
+ * approval status.
  */
 export async function updateMemberProfile(
   memberId: string,
@@ -176,6 +202,43 @@ export async function updateMemberProfile(
       .from("profiles")
       .update({
         ...values,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", memberId)
+      .select(MEMBER_COLUMNS)
+      .single();
+
+    if (error) {
+      return { member: null, error: error.message };
+    }
+
+    return { member: data as Member, error: null };
+  } catch (error) {
+    return { member: null, error: errorMessage(error) };
+  }
+}
+
+/**
+ * Approves or rejects a member account.
+ *
+ * Only administrators pass the RLS update policy. A database trigger blocks
+ * regular members from self-approving even if they call the API directly.
+ * `pending` is intentionally not accepted here: new accounts start pending and
+ * are only moved forward by an administrator.
+ */
+export async function updateMemberApproval(
+  memberId: string,
+  approvalStatus: Exclude<ApprovalStatus, "pending">,
+): Promise<{ member: Member | null; error: string | null }> {
+  if (!supabase) {
+    return { member: null, error: "Supabase non configurato." };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        approval_status: approvalStatus,
         updated_at: new Date().toISOString(),
       })
       .eq("id", memberId)

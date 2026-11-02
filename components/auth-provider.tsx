@@ -11,7 +11,13 @@ import {
 } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { formatAuthError } from "@/lib/auth-actions";
+import { clearPostAuthRedirect } from "@/lib/auth-redirect";
 import { fetchCurrentConsent, recordConsent } from "@/lib/consent";
+import {
+  fetchProfile,
+  formatProfileError,
+  type ApprovalStatus as MemberApprovalStatus,
+} from "@/lib/profile";
 import { supabase } from "@/lib/supabase";
 
 export type ConsentStatus =
@@ -21,9 +27,25 @@ export type ConsentStatus =
   | "accepted"
   | "error";
 
+/**
+ * Account approval state used by `AuthGuard`.
+ *
+ * `unknown` means there is no signed-in user or consent has not been checked
+ * yet. `checking` is derived while the profile request is in flight.
+ */
+export type ApprovalStatus =
+  | "unknown"
+  | "checking"
+  | MemberApprovalStatus
+  | "error";
+
 type ConsentCheck =
   | { userId: string; status: "accepted" }
   | { userId: string; status: "required" }
+  | { userId: string; status: "error"; message: string };
+
+type ApprovalCheck =
+  | { userId: string; status: MemberApprovalStatus }
   | { userId: string; status: "error"; message: string };
 
 type AuthContextValue = {
@@ -36,6 +58,9 @@ type AuthContextValue = {
   consentError: string | null;
   acceptConsent: () => Promise<{ error: string | null }>;
   retryConsent: () => void;
+  approvalStatus: ApprovalStatus;
+  approvalError: string | null;
+  retryApproval: () => void;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -45,8 +70,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(supabase !== null);
   const [consentCheck, setConsentCheck] = useState<ConsentCheck | null>(null);
   const [consentCheckAttempt, setConsentCheckAttempt] = useState(0);
+  const [approvalCheck, setApprovalCheck] = useState<ApprovalCheck | null>(null);
+  const [approvalCheckAttempt, setApprovalCheckAttempt] = useState(0);
 
   const userId = session?.user?.id ?? null;
+
+  const isConsentCheckCurrent = consentCheck?.userId === userId;
+  const consentStatus: ConsentStatus = !userId
+    ? "unknown"
+    : isConsentCheckCurrent
+      ? consentCheck.status
+      : "checking";
+  const consentError =
+    isConsentCheckCurrent && consentCheck.status === "error"
+      ? consentCheck.message
+      : null;
+
+  // The profile query is also protected by the consent RLS layer, so it can
+  // only be attempted after the current policy has been accepted.
+  const approvalStatus: ApprovalStatus = !userId
+    ? "unknown"
+    : consentStatus !== "accepted"
+      ? "unknown"
+      : approvalCheck && approvalCheck.userId === userId
+        ? approvalCheck.status
+        : "checking";
+  const approvalError =
+    approvalCheck &&
+    approvalCheck.userId === userId &&
+    approvalCheck.status === "error"
+      ? approvalCheck.message
+      : null;
 
   useEffect(() => {
     if (!supabase) {
@@ -110,6 +164,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [userId, consentCheckAttempt]);
 
+  useEffect(() => {
+    if (!supabase || !userId || consentStatus !== "accepted") {
+      return;
+    }
+
+    let isActive = true;
+
+    fetchProfile(userId).then(({ profile, error }) => {
+      if (!isActive) return;
+
+      if (error) {
+        setApprovalCheck({
+          userId,
+          status: "error",
+          message: formatProfileError(error),
+        });
+        return;
+      }
+
+      if (!profile) {
+        setApprovalCheck({
+          userId,
+          status: "error",
+          message:
+            "La scheda del socio non è disponibile. Contatta un amministratore.",
+        });
+        return;
+      }
+
+      setApprovalCheck({
+        userId,
+        // Mirrors `is_current_user_approved()`: administrators keep access even
+        // if their own row is pending or rejected, so a bad status can never
+        // lock every administrator out of account repair.
+        status: profile.is_admin ? "approved" : profile.approval_status,
+      });
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId, consentStatus, approvalCheckAttempt]);
+
   const signOut = useCallback(async () => {
     if (!supabase) {
       return { error: "Supabase non configurato." };
@@ -117,6 +214,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const { error } = await supabase.auth.signOut();
+
+      if (!error) {
+        // A different account must not inherit a deep link from this session.
+        clearPostAuthRedirect();
+      }
+
       return { error: error ? formatAuthError(error) : null };
     } catch (error) {
       return {
@@ -148,16 +251,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setConsentCheckAttempt((attempt) => attempt + 1);
   }, []);
 
-  const isConsentCheckCurrent = consentCheck?.userId === userId;
-  const consentStatus: ConsentStatus = !userId
-    ? "unknown"
-    : isConsentCheckCurrent
-      ? consentCheck.status
-      : "checking";
-  const consentError =
-    isConsentCheckCurrent && consentCheck.status === "error"
-      ? consentCheck.message
-      : null;
+  const retryApproval = useCallback(() => {
+    setApprovalCheck(null);
+    setApprovalCheckAttempt((attempt) => attempt + 1);
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
@@ -170,6 +267,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       consentError,
       acceptConsent,
       retryConsent,
+      approvalStatus,
+      approvalError,
+      retryApproval,
     }),
     [
       session,
@@ -179,6 +279,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       consentError,
       acceptConsent,
       retryConsent,
+      approvalStatus,
+      approvalError,
+      retryApproval,
     ],
   );
 

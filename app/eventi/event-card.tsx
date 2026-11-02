@@ -240,6 +240,7 @@ export function EventCard({
       .filter((id): id is string => id !== null),
   );
   const noResponseNames = members
+    .filter((member) => member.approval_status === "approved")
     .filter((member) => !respondedIds.has(member.id))
     .map(memberDisplayName)
     .sort((first, second) => collator.compare(first, second));
