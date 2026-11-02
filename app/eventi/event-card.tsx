@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DELETED_MEMBER_NAME, type Member } from "@/lib/profile";
 import {
   formatEventDate,
   formatEventError,
+  getEventSharePath,
   saveEventResponse,
   type EventRecord,
   type EventResponseRecord,
@@ -17,6 +18,7 @@ import {
   ClockIcon,
   MapPinIcon,
   PencilIcon,
+  ShareIcon,
   TrashIcon,
   UsersIcon,
   XIcon,
@@ -74,6 +76,41 @@ const ATTENDANCE_TONES = {
 } as const;
 
 const collator = new Intl.Collator("it", { sensitivity: "base" });
+
+type ShareState = "idle" | "copied" | "error";
+
+/**
+ * Copies text even when the async Clipboard API is unavailable or blocked
+ * (for example on an insecure origin or in an older browser).
+ */
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through to the legacy copy path.
+    }
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  textarea.setSelectionRange(0, text.length);
+
+  try {
+    if (!document.execCommand("copy")) {
+      throw new Error("Copia non riuscita.");
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
 
 function statusBadgeClass(status: EventResponseStatus | undefined): string {
   switch (status) {
@@ -137,6 +174,7 @@ type EventCardProps = {
   userId: string;
   isAdmin: boolean;
   isPast: boolean;
+  isHighlighted: boolean;
   onResponseSaved: (response: EventResponseRecord) => void;
   onEdit: (event: EventRecord) => void;
   onDelete: (event: EventRecord) => void;
@@ -150,12 +188,23 @@ export function EventCard({
   userId,
   isAdmin,
   isPast,
+  isHighlighted,
   onResponseSaved,
   onEdit,
   onDelete,
 }: EventCardProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [shareState, setShareState] = useState<ShareState>("idle");
+  const shareResetTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (shareResetTimer.current !== null) {
+        window.clearTimeout(shareResetTimer.current);
+      }
+    };
+  }, []);
 
   const formattedDate = formatEventDate(event.event_date, event.is_all_day);
   const statusLabel = response
@@ -218,35 +267,127 @@ export function EventCard({
     setIsSaving(false);
   }
 
+  async function handleShare() {
+    const shareUrl = new URL(
+      getEventSharePath(event.id),
+      window.location.origin,
+    ).toString();
+    const location = event.location?.trim();
+    const shareText = location
+      ? `${event.title} — ${formattedDate} — ${location}`
+      : `${event.title} — ${formattedDate}`;
+
+    if (shareResetTimer.current !== null) {
+      window.clearTimeout(shareResetTimer.current);
+      shareResetTimer.current = null;
+    }
+    setShareState("idle");
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: `Evento: ${event.title}`,
+          text: shareText,
+          url: shareUrl,
+        });
+        return;
+      } catch (shareError) {
+        if (
+          shareError instanceof Error &&
+          shareError.name === "AbortError"
+        ) {
+          return;
+        }
+        // The native sheet failed: fall back to copying the direct link.
+      }
+    }
+
+    try {
+      await copyTextToClipboard(shareUrl);
+      setShareState("copied");
+      shareResetTimer.current = window.setTimeout(() => {
+        setShareState("idle");
+        shareResetTimer.current = null;
+      }, 3000);
+    } catch {
+      setShareState("error");
+    }
+  }
+
   return (
-    <li className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+    <li
+      className={`scroll-mt-28 overflow-hidden rounded-3xl border bg-white shadow-sm dark:bg-zinc-900 ${
+        isHighlighted
+          ? "border-emerald-400 ring-2 ring-emerald-300/70 dark:border-emerald-700 dark:ring-emerald-800"
+          : "border-zinc-200 dark:border-zinc-800"
+      }`}
+      id={`event-${event.id}`}
+    >
       <div className="p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
-            {isPast ? "Evento concluso" : "Prossimo evento"}
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
+              {isPast ? "Evento concluso" : "Prossimo evento"}
+            </p>
+            {isHighlighted ? (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                <ShareIcon className="h-3.5 w-3.5" />
+                Evento condiviso
+              </span>
+            ) : null}
+          </div>
 
-          {isAdmin ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                onClick={() => onEdit(event)}
-                type="button"
-              >
-                <PencilIcon className="h-4 w-4" />
-                Modifica
-              </button>
-              <button
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 dark:border-red-900 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/40"
-                onClick={() => onDelete(event)}
-                type="button"
-              >
-                <TrashIcon className="h-4 w-4" />
-                Elimina
-              </button>
-            </div>
-          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              aria-label={`Condividi l’evento ${event.title}`}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3 py-1.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-emerald-800 dark:bg-zinc-950 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+              onClick={handleShare}
+              type="button"
+            >
+              {shareState === "copied" ? (
+                <CheckCircleIcon className="h-4 w-4" />
+              ) : (
+                <ShareIcon className="h-4 w-4" />
+              )}
+              {shareState === "copied" ? "Link copiato" : "Condividi"}
+            </button>
+            <span aria-live="polite" className="sr-only">
+              {shareState === "copied"
+                ? "Link dell’evento copiato negli appunti."
+                : ""}
+            </span>
+
+            {isAdmin ? (
+              <>
+                <button
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  onClick={() => onEdit(event)}
+                  type="button"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                  Modifica
+                </button>
+                <button
+                  className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 dark:border-red-900 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/40"
+                  onClick={() => onDelete(event)}
+                  type="button"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  Elimina
+                </button>
+              </>
+            ) : null}
+          </div>
         </div>
+
+        {shareState === "error" ? (
+          <p
+            className="mt-2 text-sm font-medium text-red-700 dark:text-red-300"
+            role="alert"
+          >
+            Impossibile copiare il link. Riprova.
+          </p>
+        ) : null}
 
         <div className="mt-3 flex items-start gap-4">
           <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">

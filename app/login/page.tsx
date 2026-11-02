@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { formatAuthError } from "@/lib/auth-actions";
+import {
+  clearPostAuthRedirect,
+  readLoginRedirect,
+  rememberPostAuthRedirect,
+} from "@/lib/auth-redirect";
 import { useAuth } from "@/components/auth-provider";
 import { AuthScreen } from "@/components/auth-screen";
 import { ConfigurationNotice } from "@/components/configuration-notice";
@@ -35,12 +40,18 @@ export default function LoginPage() {
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [nextPath] = useState<string | null>(() =>
+    typeof window === "undefined"
+      ? null
+      : readLoginRedirect(window.location.search),
+  );
 
   useEffect(() => {
     if (!isAuthLoading && user) {
-      router.replace("/");
+      clearPostAuthRedirect();
+      router.replace(nextPath ?? "/");
     }
-  }, [isAuthLoading, user, router]);
+  }, [isAuthLoading, nextPath, user, router]);
 
   if (!isConfigured) {
     return <ConfigurationNotice />;
@@ -67,6 +78,7 @@ export default function LoginPage() {
     setError(null);
     setNotice(null);
     setIsGoogleSubmitting(true);
+    rememberPostAuthRedirect(nextPath);
 
     try {
       const { error: googleError } = await supabase.auth.signInWithOAuth({
@@ -78,10 +90,12 @@ export default function LoginPage() {
       });
 
       if (googleError) {
+        clearPostAuthRedirect();
         setError(formatAuthError(googleError.message));
         setIsGoogleSubmitting(false);
       }
     } catch (error) {
+      clearPostAuthRedirect();
       setError(
         error instanceof Error
           ? formatAuthError(error.message)
@@ -142,6 +156,8 @@ export default function LoginPage() {
     }
 
     try {
+      rememberPostAuthRedirect(nextPath);
+
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
@@ -152,6 +168,7 @@ export default function LoginPage() {
       });
 
       if (signUpError) {
+        clearPostAuthRedirect();
         setError(formatAuthError(signUpError.message));
         setIsSubmitting(false);
         return;
@@ -165,8 +182,10 @@ export default function LoginPage() {
         setPassword("");
         setIsSubmitting(false);
       }
-      // When email confirmation is disabled, the auth listener redirects to "/".
+      // When email confirmation is disabled, the auth listener redirects to the
+      // shared destination (or "/") as soon as the session is available.
     } catch (error) {
+      clearPostAuthRedirect();
       setError(
         error instanceof Error
           ? formatAuthError(error.message)

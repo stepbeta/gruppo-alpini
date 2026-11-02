@@ -236,6 +236,17 @@ export function MegaphoneIcon({ className }: IconProps) {
   );
 }
 
+export function ShareIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.7 10.5 6.6-4M8.7 13.5l6.6 4" />
+    </IconBase>
+  );
+}
+
 export function GoogleIcon({ className }: IconProps) {
   return (
     <svg

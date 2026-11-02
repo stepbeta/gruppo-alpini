@@ -9,6 +9,7 @@ import {
   fetchEventResponses,
   fetchEvents,
   formatEventError,
+  getEventIdFromSearch,
   type EventRecord,
   type EventResponseRecord,
 } from "@/lib/events";
@@ -64,6 +65,7 @@ export function EventsPage() {
   const [deletingEvent, setDeletingEvent] = useState<EventRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(0);
+  const [sharedEventId, setSharedEventId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId) return;
@@ -110,6 +112,16 @@ export function EventsPage() {
         setNow(Date.now());
         setLoadError(null);
         setIsLoading(false);
+
+        const linkedEventId = getEventIdFromSearch(window.location.search);
+        setSharedEventId(linkedEventId);
+
+        if (
+          linkedEventId &&
+          !eventsResult.events.some((event) => event.id === linkedEventId)
+        ) {
+          setNotice("L’evento condiviso non è più disponibile.");
+        }
       },
     );
 
@@ -117,6 +129,15 @@ export function EventsPage() {
       isActive = false;
     };
   }, [userId, reloadKey]);
+
+  useEffect(() => {
+    if (!sharedEventId) return;
+
+    const element = document.getElementById(`event-${sharedEventId}`);
+    if (!element) return;
+
+    element.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [sharedEventId]);
 
   const upcomingEvents = useMemo(
     () =>
@@ -375,6 +396,7 @@ export function EventsPage() {
                       allResponses={responsesByEvent.get(event.id) ?? []}
                       event={event}
                       isAdmin={isAdmin}
+                      isHighlighted={event.id === sharedEventId}
                       isPast={false}
                       key={event.id}
                       members={isAdmin ? members : []}
@@ -435,6 +457,7 @@ export function EventsPage() {
                       allResponses={responsesByEvent.get(event.id) ?? []}
                       event={event}
                       isAdmin={isAdmin}
+                      isHighlighted={event.id === sharedEventId}
                       isPast
                       key={event.id}
                       members={isAdmin ? members : []}

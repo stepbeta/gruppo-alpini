@@ -34,6 +34,7 @@ gruppo-alpini/
 │   ├── supabase.ts      # Initialized singleton browser Supabase client
 │   ├── supabase-admin.ts # Server-only Supabase client for Auth admin API
 │   ├── auth-actions.ts  # Password recovery, credentials and Italian auth errors
+│   ├── auth-redirect.ts # Safe post-login return paths and pending OAuth deep links
 │   ├── profile.ts       # Profile types and read/upsert/admin/delete helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
 │   ├── requests.ts      # Generic request types, formatting and data helpers
@@ -167,6 +168,15 @@ the public `/privacy` page.
 - Signed-in members can choose **Presente**, **In forse**, or **Assente** for
   each upcoming event. The selected response is highlighted and can be changed
   at any time; responses to past events are read-only.
+- Every event card has **Condividi**. On devices that support the Web Share API
+  it opens the native share sheet (WhatsApp, Messages, email, and so on);
+  otherwise it copies the direct link `/eventi?event=<id>` to the clipboard.
+  Shared links stay behind `AuthGuard`: a logged-out visitor is sent to
+  `/login?next=<event-link>` and returned to the event after signing in. The
+  events page scrolls to the matching card and highlights it as **Evento
+  condiviso**; a deleted or unknown event shows a short notice instead. OAuth
+  and email-confirmation round trips keep the destination in `sessionStorage`
+  until the session and privacy consent are ready.
 - Members with `is_admin = true` also see **Nuovo evento**, **Modifica**, and
   **Elimina** controls. Deletion asks for confirmation and also removes the
   event's responses. Every event card includes attendance totals plus the
@@ -451,6 +461,7 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **The privacy page shows “non ancora pubblicato” contact details** — update the single row in `public.organization_settings` (see the section above), then wait for the hourly cache revalidation or run a new deployment.
 - **The privacy page last-updated date looks like the deployment date** — the generated metadata falls back to the file mtime when git history is unavailable (for example in a source tarball). Deploy from a git checkout to use the commit date.
 - **The announcement banner never appears or `/avvisi` says the table is unavailable** — apply `20261102020000_announcement_banners.sql` with `npm run db:push`, then confirm the row is active and, if it has dates, that the current time is inside the window. Inactive, scheduled and expired banners are hidden from members by RLS.
+- **A shared event link does not return to the event after login** — email/password sign-in keeps the destination in the `next` query parameter; OAuth and email confirmation keep it in `sessionStorage`. Confirm that browser storage is available and that the app origin is listed in Supabase **Authentication → URL Configuration → Redirect URLs**.
 - **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs and requests survive.
 - **Password recovery email never arrives** — verify that `http://localhost:3000/login/reset-password` (and its production equivalent) is in **Authentication → URL Configuration → Redirect URLs**, that Custom SMTP is configured outside local testing, and that the default rate limit has not been reached. Check the spam folder too.
 - **Recovery link says it is invalid or expired** — links are single-use and time-limited. Request a new one from `/login/forgot`; also confirm the reset page is allowed in the Supabase redirect URLs.

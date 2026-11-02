@@ -43,6 +43,22 @@ const EVENT_COLUMNS =
   "id, title, description, location, event_date, is_all_day, created_by, created_at";
 const EVENT_RESPONSE_COLUMNS = "id, event_id, user_id, status, updated_at";
 
+export const EVENT_DEEP_LINK_PARAM = "event";
+
+/** Path for a shareable, authentication-protected event deep link. */
+export function getEventSharePath(eventId: string): string {
+  return `/eventi?${EVENT_DEEP_LINK_PARAM}=${encodeURIComponent(eventId)}`;
+}
+
+/** Reads an event id from a query string such as `?event=<id>`. */
+export function getEventIdFromSearch(search: string): string | null {
+  const eventId = new URLSearchParams(search)
+    .get(EVENT_DEEP_LINK_PARAM)
+    ?.trim();
+
+  return eventId ? eventId : null;
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return "Errore di rete. Controlla la connessione e riprova.";
