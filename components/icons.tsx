@@ -227,6 +227,15 @@ export function DownloadIcon({ className }: IconProps) {
   );
 }
 
+export function MegaphoneIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="m3 11 18-5v12L3 14v-3Z" />
+      <path d="M11.6 16.8a3 3 0 0 1-5.8-1" />
+    </IconBase>
+  );
+}
+
 export function GoogleIcon({ className }: IconProps) {
   return (
     <svg

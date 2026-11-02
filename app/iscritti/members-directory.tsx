@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -17,6 +18,7 @@ import { fetchMembers, type Member } from "@/lib/profile";
 import {
   AlertCircleIcon,
   CheckCircleIcon,
+  MegaphoneIcon,
   PencilIcon,
   SearchIcon,
   ShieldCheckIcon,
@@ -207,10 +209,22 @@ export function MembersDirectory() {
           </div>
 
           {!isLoading && !loadError ? (
-            <p className="inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-              <UsersIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
-              {members.length} {members.length === 1 ? "iscritto" : "iscritti"}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {isAdmin ? (
+                <Link
+                  className="inline-flex w-fit items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3.5 py-2 text-sm font-semibold text-amber-800 shadow-sm transition hover:bg-amber-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
+                  href="/avvisi"
+                >
+                  <MegaphoneIcon className="h-4 w-4" />
+                  Gestisci avvisi
+                </Link>
+              ) : null}
+              <p className="inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                <UsersIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
+                {members.length}{" "}
+                {members.length === 1 ? "iscritto" : "iscritti"}
+              </p>
+            </div>
           ) : null}
         </div>
 

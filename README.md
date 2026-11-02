@@ -25,6 +25,7 @@ gruppo-alpini/
 │   ├── eventi/          # Event calendar, RSVP, admin event creation and totals
 │   ├── iscritti/        # Member directory + admin profile editing/deletion
 │   ├── richieste/       # Generic requests form + admin secretariat board
+│   ├── avvisi/          # Admin announcement banner management
 │   ├── api/             # Server-side route handlers (account deletion)
 │   ├── privacy/         # Public, server-rendered privacy policy
 │   └── globals.css      # Tailwind & global styles
@@ -36,6 +37,7 @@ gruppo-alpini/
 │   ├── profile.ts       # Profile types and read/upsert/admin/delete helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
 │   ├── requests.ts      # Generic request types, formatting and data helpers
+│   ├── announcements.ts # Announcement banner types, visibility and CRUD helpers
 │   ├── consent.ts       # Privacy consent check and acceptance
 │   ├── data-export.ts   # GDPR JSON/HTML export, formatting and download
 │   ├── organization.ts  # Cached public organization settings for /privacy
@@ -228,6 +230,28 @@ SQL session; the temporary service-role claim is the database-owner escape hatch
   with a `NULL` author. `event_responses` rows still carry their status, so past
   event attendance totals remain correct; the UI labels them **Socio eliminato**.
 - Removing an event still deletes its responses, as before.
+
+### Announcement banners
+
+- `public.announcement_banners` stores platform-wide messages. The migration is
+  `supabase/migrations/20261102020000_announcement_banners.sql`.
+- All authenticated members can read banners that are active and inside their
+  optional date window. Only administrators can create, edit, toggle and delete
+  them; the policies call `is_current_user_admin()`.
+- The header banner is rendered by `components/announcement-banner.tsx` inside
+  `components/site-header.tsx`, so it appears on every authenticated page.
+  Failures are silent: a missing migration never breaks the rest of the portal.
+- When several banners are active and in their window, the portal shows the most
+  recently created one. `lib/announcements.ts` implements the same rule for the
+  header and the admin page, so administrators can see which banner is live.
+- A banner with no dates stays visible until it is deactivated or deleted.
+  `start_date`/`end_date` are optional and inclusive.
+- Administrators manage banners from `/avvisi`, linked from the home page and
+  from `/iscritti`. The page lets them create, edit, activate/deactivate and
+  delete banners. Scheduled, expired and inactive banners stay in the admin list
+  but are hidden from members by RLS.
+- The first migration to apply for this feature is
+  `20261102020000_announcement_banners.sql`; run `npm run db:push`.
 
 ### Privacy, consent and data portability
 
@@ -426,6 +450,7 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Data export says the function is unavailable or permission is denied** — apply `20261102000000_gdpr_privacy_consent_and_data_export.sql` with `npm run db:push`. A member can export only their own data; an administrator profile is required for another member.
 - **The privacy page shows “non ancora pubblicato” contact details** — update the single row in `public.organization_settings` (see the section above), then wait for the hourly cache revalidation or run a new deployment.
 - **The privacy page last-updated date looks like the deployment date** — the generated metadata falls back to the file mtime when git history is unavailable (for example in a source tarball). Deploy from a git checkout to use the commit date.
+- **The announcement banner never appears or `/avvisi` says the table is unavailable** — apply `20261102020000_announcement_banners.sql` with `npm run db:push`, then confirm the row is active and, if it has dates, that the current time is inside the window. Inactive, scheduled and expired banners are hidden from members by RLS.
 - **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs and requests survive.
 - **Password recovery email never arrives** — verify that `http://localhost:3000/login/reset-password` (and its production equivalent) is in **Authentication → URL Configuration → Redirect URLs**, that Custom SMTP is configured outside local testing, and that the default rate limit has not been reached. Check the spam folder too.
 - **Recovery link says it is invalid or expired** — links are single-use and time-limited. Request a new one from `/login/forgot`; also confirm the reset page is allowed in the Supabase redirect URLs.
