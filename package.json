@@ -9,6 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "pretypecheck": "npm run privacy:meta",
     "typecheck": "tsc --noEmit",
     "privacy:meta": "node scripts/generate-privacy-meta.mjs",
@@ -35,6 +37,7 @@
     "eslint-config-next": "16.4.2",
     "supabase": "^2.121.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.12"
   }
 }
