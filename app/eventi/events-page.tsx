@@ -1,11 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { Pagination } from "@/components/pagination";
 import { useAuth } from "@/components/auth-provider";
-import { fetchMembers, fetchProfile, type Member } from "@/lib/profile";
 import {
+  fetchMemberCount,
+  fetchMembersByIds,
+  fetchProfile,
+  type Member,
+} from "@/lib/profile";
+import {
+  fetchEventById,
   fetchEventResponses,
   fetchEvents,
   formatEventError,
@@ -13,16 +20,20 @@ import {
   type EventRecord,
   type EventResponseRecord,
 } from "@/lib/events";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import {
   AlertCircleIcon,
   CalendarIcon,
   CheckCircleIcon,
   PlusIcon,
+  SearchIcon,
   XIcon,
 } from "@/components/icons";
 import { DeleteEventDialog } from "./delete-event-dialog";
 import { EventCard } from "./event-card";
 import { EventDialog } from "./event-dialog";
+
+const EVENT_PAGE_SIZE = 5;
 
 function eventTimestamp(event: EventRecord): number {
   const timestamp = new Date(event.event_date).getTime();
@@ -52,78 +63,61 @@ export function EventsPage() {
   const { user } = useAuth();
   const userId = user?.id;
 
-  const [events, setEvents] = useState<EventRecord[]>([]);
+  const [upcomingEvents, setUpcomingEvents] = useState<EventRecord[]>([]);
+  const [pastEvents, setPastEvents] = useState<EventRecord[]>([]);
+  const [upcomingTotal, setUpcomingTotal] = useState(0);
+  const [pastTotal, setPastTotal] = useState(0);
+  const [upcomingPageCount, setUpcomingPageCount] = useState(0);
+  const [pastPageCount, setPastPageCount] = useState(0);
+  const [upcomingPage, setUpcomingPage] = useState(1);
+  const [pastPage, setPastPage] = useState(1);
+  const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query.trim(), 350);
+
   const [responses, setResponses] = useState<EventResponseRecord[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [approvedMemberCount, setApprovedMemberCount] = useState(0);
+  const [responsesError, setResponsesError] = useState<string | null>(null);
   const [membersError, setMembersError] = useState<string | null>(null);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [eventsError, setEventsError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventRecord | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<EventRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [now, setNow] = useState(0);
+
   const [sharedEventId, setSharedEventId] = useState<string | null>(null);
+  const [sharedEvent, setSharedEvent] = useState<EventRecord | null>(null);
+
+  const didLoadRef = useRef(false);
+  const scrolledEventRef = useRef<string | null>(null);
+  const upcomingSectionRef = useRef<HTMLElement>(null);
+  const pastSectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     if (!userId) return;
 
     let isActive = true;
 
-    Promise.all([fetchEvents(), fetchProfile(userId)]).then(
-      async ([eventsResult, profileResult]) => {
-        if (!isActive) return;
+    fetchProfile(userId).then(({ profile, error }) => {
+      if (!isActive) return;
 
-        const baseError = eventsResult.error || profileResult.error;
-        if (baseError) {
-          setLoadError(formatEventError(baseError));
-          setIsLoading(false);
-          return;
-        }
-
-        const isAdminUser = profileResult.profile?.is_admin === true;
-        const membersPromise: Promise<{
-          members: Member[];
-          error: string | null;
-        }> = isAdminUser
-          ? fetchMembers()
-          : Promise.resolve({ members: [], error: null });
-
-        const [responsesResult, membersResult] = await Promise.all([
-          fetchEventResponses(),
-          membersPromise,
-        ]);
-
-        if (!isActive) return;
-
-        if (responsesResult.error) {
-          setLoadError(formatEventError(responsesResult.error));
-          setIsLoading(false);
-          return;
-        }
-
-        setEvents(eventsResult.events);
-        setResponses(responsesResult.responses);
-        setMembers(membersResult.members);
-        setMembersError(membersResult.error);
-        setIsAdmin(isAdminUser);
-        setNow(Date.now());
-        setLoadError(null);
+      if (error) {
+        setProfileError(formatEventError(error));
         setIsLoading(false);
+        return;
+      }
 
-        const linkedEventId = getEventIdFromSearch(window.location.search);
-        setSharedEventId(linkedEventId);
-
-        if (
-          linkedEventId &&
-          !eventsResult.events.some((event) => event.id === linkedEventId)
-        ) {
-          setNotice("L’evento condiviso non è più disponibile.");
-        }
-      },
-    );
+      setProfileError(null);
+      setIsAdmin(profile?.is_admin === true);
+    });
 
     return () => {
       isActive = false;
@@ -131,29 +125,206 @@ export function EventsPage() {
   }, [userId, reloadKey]);
 
   useEffect(() => {
-    if (!sharedEventId) return;
+    if (!userId || !isAdmin) {
+      return;
+    }
+
+    let isActive = true;
+
+    fetchMemberCount("approved").then(({ count }) => {
+      if (!isActive) return;
+      setApprovedMemberCount(count);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId, isAdmin, reloadKey]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    let isActive = true;
+
+    if (didLoadRef.current) {
+      setIsRefreshing(true);
+    }
+
+    Promise.all([
+      fetchEvents({
+        scope: "upcoming",
+        page: upcomingPage,
+        pageSize: EVENT_PAGE_SIZE,
+        search: debouncedQuery,
+      }),
+      fetchEvents({
+        scope: "past",
+        page: pastPage,
+        pageSize: EVENT_PAGE_SIZE,
+        search: debouncedQuery,
+      }),
+    ]).then(([upcomingResult, pastResult]) => {
+      if (!isActive) return;
+
+      const nextError = upcomingResult.error ?? pastResult.error;
+
+      if (nextError) {
+        setEventsError(formatEventError(nextError));
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
+
+      // A deletion (or a filter change) can leave the current page out of
+      // range. Move to the last available page and let the effect refetch.
+      if (upcomingPage > Math.max(1, upcomingResult.pageCount)) {
+        setUpcomingPage(Math.max(1, upcomingResult.pageCount));
+        setIsRefreshing(false);
+        return;
+      }
+
+      if (pastPage > Math.max(1, pastResult.pageCount)) {
+        setPastPage(Math.max(1, pastResult.pageCount));
+        setIsRefreshing(false);
+        return;
+      }
+
+      setUpcomingEvents(upcomingResult.events);
+      setPastEvents(pastResult.events);
+      setUpcomingTotal(upcomingResult.total);
+      setPastTotal(pastResult.total);
+      setUpcomingPageCount(upcomingResult.pageCount);
+      setPastPageCount(pastResult.pageCount);
+      setEventsError(null);
+      setNow(Date.now());
+      setIsLoading(false);
+      setIsRefreshing(false);
+      didLoadRef.current = true;
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId, upcomingPage, pastPage, debouncedQuery, reloadKey]);
+
+  useEffect(() => {
+    const linkedEventId = getEventIdFromSearch(window.location.search);
+    if (!linkedEventId) return;
+
+    let isActive = true;
+
+    fetchEventById(linkedEventId).then(({ event, error }) => {
+      if (!isActive) return;
+
+      if (error) {
+        setNotice(formatEventError(error));
+        return;
+      }
+
+      if (!event) {
+        setNotice("L’evento condiviso non è più disponibile.");
+        return;
+      }
+
+      setSharedEventId(linkedEventId);
+      setSharedEvent(event);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId]);
+
+  const visibleEvents = useMemo(() => {
+    const list = [...upcomingEvents, ...pastEvents];
+
+    if (sharedEvent && !list.some((event) => event.id === sharedEvent.id)) {
+      list.push(sharedEvent);
+    }
+
+    return list;
+  }, [upcomingEvents, pastEvents, sharedEvent]);
+
+  const visibleEventIds = useMemo(
+    () => visibleEvents.map((event) => event.id),
+    [visibleEvents],
+  );
+
+  useEffect(() => {
+    if (!userId || visibleEventIds.length === 0) {
+      return;
+    }
+
+    let isActive = true;
+
+    fetchEventResponses(visibleEventIds).then((result) => {
+      if (!isActive) return;
+
+      if (result.error) {
+        setResponses([]);
+        setResponsesError(formatEventError(result.error));
+        return;
+      }
+
+      setResponses(result.responses);
+      setResponsesError(null);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId, visibleEventIds]);
+
+  // Only load the names of members who actually responded to the events on
+  // screen, instead of downloading the whole directory. Deriving the ids from
+  // `responses` also refreshes them when the signed-in administrator answers.
+  const responderIds = useMemo(
+    () => [
+      ...new Set(
+        responses
+          .map((item) => item.user_id)
+          .filter((id): id is string => id !== null),
+      ),
+    ],
+    [responses],
+  );
+
+  useEffect(() => {
+    if (!isAdmin || responderIds.length === 0) {
+      return;
+    }
+
+    let isActive = true;
+
+    fetchMembersByIds(responderIds).then((result) => {
+      if (!isActive) return;
+
+      setMembers(result.members);
+      setMembersError(
+        result.error ? formatEventError(result.error) : null,
+      );
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [isAdmin, responderIds]);
+
+  const isSharedEventVisible =
+    sharedEventId !== null &&
+    [...upcomingEvents, ...pastEvents].some(
+      (event) => event.id === sharedEventId,
+    );
+
+  useEffect(() => {
+    if (!sharedEventId || scrolledEventRef.current === sharedEventId) return;
 
     const element = document.getElementById(`event-${sharedEventId}`);
     if (!element) return;
 
     element.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, [sharedEventId]);
-
-  const upcomingEvents = useMemo(
-    () =>
-      [...events]
-        .filter((event) => !isEventPast(event, now))
-        .sort((first, second) => eventTimestamp(first) - eventTimestamp(second)),
-    [events, now],
-  );
-
-  const pastEvents = useMemo(
-    () =>
-      [...events]
-        .filter((event) => isEventPast(event, now))
-        .sort((first, second) => eventTimestamp(second) - eventTimestamp(first)),
-    [events, now],
-  );
+    scrolledEventRef.current = sharedEventId;
+  }, [sharedEventId, upcomingEvents, pastEvents, sharedEvent]);
 
   const responsesByEvent = useMemo(() => {
     const map = new Map<string, EventResponseRecord[]>();
@@ -178,6 +349,11 @@ export function EventsPage() {
 
     return map;
   }, [responses, userId]);
+
+  const hasSearch = debouncedQuery.length > 0;
+  const totalResults = upcomingTotal + pastTotal;
+  const hasResults = totalResults > 0;
+  const loadError = profileError ?? eventsError;
 
   const handleCloseCreate = useCallback(() => {
     setIsCreateOpen(false);
@@ -204,40 +380,46 @@ export function EventsPage() {
         : [...current, updatedResponse];
     });
 
-    const event = events.find(
+    const event = visibleEvents.find(
       (item) => item.id === updatedResponse.event_id,
     );
 
-    setNotice(
-      `Risposta salvata per “${event?.title ?? "l’evento"}”.`,
-    );
+    setNotice(`Risposta salvata per “${event?.title ?? "l’evento"}”.`);
   }
 
   function handleEventCreated(createdEvent: EventRecord) {
-    setEvents((current) => [...current, createdEvent]);
-    setNow(Date.now());
+    setUpcomingPage(1);
+    setPastPage(1);
+    setReloadKey((current) => current + 1);
     setIsCreateOpen(false);
     setNotice(`Evento creato: ${createdEvent.title}.`);
   }
 
   function handleEventUpdated(updatedEvent: EventRecord) {
-    setEvents((current) =>
-      current.map((event) =>
-        event.id === updatedEvent.id ? updatedEvent : event,
-      ),
+    setSharedEvent((current) =>
+      current?.id === updatedEvent.id ? updatedEvent : current,
     );
-    setNow(Date.now());
+    setReloadKey((current) => current + 1);
     setEditingEvent(null);
     setNotice(`Evento aggiornato: ${updatedEvent.title}.`);
   }
 
   function handleEventDeleted(eventId: string) {
-    const event = events.find((item) => item.id === eventId);
+    const event = visibleEvents.find((item) => item.id === eventId);
 
-    setEvents((current) => current.filter((item) => item.id !== eventId));
+    if (sharedEventId === eventId) {
+      setSharedEventId(null);
+      setSharedEvent(null);
+    }
+
+    setUpcomingEvents((current) =>
+      current.filter((item) => item.id !== eventId),
+    );
+    setPastEvents((current) => current.filter((item) => item.id !== eventId));
     setResponses((current) =>
       current.filter((response) => response.event_id !== eventId),
     );
+    setReloadKey((current) => current + 1);
     setDeletingEvent(null);
     setNotice(`Evento eliminato: ${event?.title ?? "l’evento"}.`);
   }
@@ -254,9 +436,34 @@ export function EventsPage() {
 
   function handleRetry() {
     setIsLoading(true);
-    setLoadError(null);
+    setProfileError(null);
+    setEventsError(null);
+    setResponsesError(null);
     setMembersError(null);
     setReloadKey((current) => current + 1);
+  }
+
+  function handlePageChange(scope: "upcoming" | "past", nextPage: number) {
+    if (scope === "upcoming") {
+      setUpcomingPage(nextPage);
+      upcomingSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+      return;
+    }
+
+    setPastPage(nextPage);
+    pastSectionRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }
+
+  function handleSearchChange(value: string) {
+    setQuery(value);
+    setUpcomingPage(1);
+    setPastPage(1);
   }
 
   if (!userId) return null;
@@ -315,7 +522,23 @@ export function EventsPage() {
           </div>
         ) : null}
 
-        {!isLoading && !loadError && isAdmin && membersError ? (
+        {!isLoading && !loadError && responsesError && visibleEventIds.length > 0 ? (
+          <div
+            className="mt-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
+            role="alert"
+          >
+            <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Impossibile caricare le adesioni: {responsesError}
+            </span>
+          </div>
+        ) : null}
+
+        {!isLoading &&
+        !loadError &&
+        isAdmin &&
+        membersError &&
+        responderIds.length > 0 ? (
           <div
             className="mt-5 flex items-start gap-2.5 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-3 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300"
             role="alert"
@@ -323,8 +546,74 @@ export function EventsPage() {
             <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
             <span>
               Impossibile caricare i nomi dei soci per il dettaglio delle
-              adesioni: {formatEventError(membersError)}
+              adesioni: {membersError}
             </span>
+          </div>
+        ) : null}
+
+        {!isLoading && !loadError && (hasResults || hasSearch) ? (
+          <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
+            <label className="sr-only" htmlFor="event-search">
+              Cerca eventi per titolo, luogo o descrizione
+            </label>
+            <div className="relative">
+              <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
+              <input
+                autoComplete="off"
+                className="w-full rounded-xl border border-zinc-300 bg-white py-3 pl-11 pr-11 text-base text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500 [&::-webkit-search-cancel-button]:appearance-none"
+                id="event-search"
+                onChange={(event) => handleSearchChange(event.target.value)}
+                placeholder="Cerca per titolo, luogo o descrizione…"
+                type="search"
+                value={query}
+              />
+              {query ? (
+                <button
+                  aria-label="Azzera la ricerca"
+                  className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  onClick={() => handleSearchChange("")}
+                  type="button"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              ) : null}
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <p
+                aria-live="polite"
+                className="text-sm text-zinc-500 dark:text-zinc-400"
+              >
+                {isRefreshing ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-700 dark:border-zinc-700 dark:border-t-emerald-400"
+                    />
+                    Aggiornamento del calendario…
+                  </span>
+                ) : hasSearch ? (
+                  `${totalResults} ${
+                    totalResults === 1 ? "evento trovato" : "eventi trovati"
+                  }`
+                ) : (
+                  `${upcomingTotal} ${
+                    upcomingTotal === 1 ? "prossimo evento" : "prossimi eventi"
+                  } · ${pastTotal} ${
+                    pastTotal === 1 ? "evento passato" : "eventi passati"
+                  }`
+                )}
+              </p>
+              {hasSearch ? (
+                <button
+                  className="rounded text-sm font-semibold text-emerald-700 transition hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+                  onClick={() => handleSearchChange("")}
+                  type="button"
+                >
+                  Azzera ricerca
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
 
@@ -377,77 +666,159 @@ export function EventsPage() {
 
         {!isLoading && !loadError ? (
           <>
-            <section className="mt-8">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-50">
-                  Prossimi eventi
+            {hasSearch && !hasResults ? (
+              <div
+                className="mt-8 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                role="status"
+              >
+                <SearchIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
+                <h2 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                  Nessun evento trovato
                 </h2>
-                <p className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-                  <CalendarIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
-                  {upcomingEvents.length}{" "}
-                  {upcomingEvents.length === 1 ? "evento" : "eventi"}
+                <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                  Non ci sono risultati per “{query.trim()}”. Prova con un altro
+                  titolo, un altro luogo o una parola della descrizione.
                 </p>
-              </div>
-
-              {upcomingEvents.length > 0 ? (
-                <ul className="mt-4 space-y-5">
-                  {upcomingEvents.map((event) => (
-                    <EventCard
-                      allResponses={responsesByEvent.get(event.id) ?? []}
-                      event={event}
-                      isAdmin={isAdmin}
-                      isHighlighted={event.id === sharedEventId}
-                      isPast={false}
-                      key={event.id}
-                      members={isAdmin ? members : []}
-                      onDelete={handleOpenDelete}
-                      onEdit={handleOpenEdit}
-                      onResponseSaved={handleResponseSaved}
-                      response={myResponses.get(event.id)}
-                      userId={userId}
-                    />
-                  ))}
-                </ul>
-              ) : (
-                <div
-                  className="mt-4 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-                  role="status"
+                <button
+                  className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+                  onClick={() => handleSearchChange("")}
+                  type="button"
                 >
-                  <CalendarIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
-                  <h3 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-                    Nessun evento in programma
-                  </h3>
-                  <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                    {isAdmin
-                      ? "Crea il primo evento per iniziare a raccogliere le adesioni dei soci."
-                      : "Gli eventi creati dagli amministratori compariranno qui."}
-                  </p>
-                  {isAdmin ? (
-                    <button
-                      className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
-                      onClick={() => {
-                        setNotice(null);
-                        setIsCreateOpen(true);
-                      }}
-                      type="button"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                      Crea un evento
-                    </button>
-                  ) : null}
-                </div>
-              )}
-            </section>
+                  Azzera ricerca
+                </button>
+              </div>
+            ) : null}
 
-            {pastEvents.length > 0 ? (
-              <section className="mt-10 border-t border-zinc-200 pt-8 dark:border-zinc-800">
+            {sharedEvent && !isSharedEventVisible ? (
+              <section className="mt-8 scroll-mt-24">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-50">
+                    Evento condiviso
+                  </h2>
+                  <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                    Aperto dal link che hai ricevuto
+                  </p>
+                </div>
+
+                <ul className="mt-4 space-y-5">
+                  <EventCard
+                    allResponses={responsesByEvent.get(sharedEvent.id) ?? []}
+                    approvedMemberCount={
+                      isAdmin ? approvedMemberCount : undefined
+                    }
+                    event={sharedEvent}
+                    isAdmin={isAdmin}
+                    isHighlighted
+                    isPast={isEventPast(sharedEvent, now)}
+                    members={isAdmin ? members : []}
+                    onDelete={handleOpenDelete}
+                    onEdit={handleOpenEdit}
+                    onResponseSaved={handleResponseSaved}
+                    response={myResponses.get(sharedEvent.id)}
+                    userId={userId}
+                  />
+                </ul>
+              </section>
+            ) : null}
+
+            {upcomingTotal > 0 || !hasSearch ? (
+              <section
+                className="mt-8 scroll-mt-24"
+                ref={upcomingSectionRef}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-50">
+                    Prossimi eventi
+                  </h2>
+                  <p className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                    <CalendarIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
+                    {upcomingTotal}{" "}
+                    {upcomingTotal === 1 ? "evento" : "eventi"}
+                  </p>
+                </div>
+
+                {upcomingEvents.length > 0 ? (
+                  <>
+                    <ul className="mt-4 space-y-5">
+                      {upcomingEvents.map((event) => (
+                        <EventCard
+                          allResponses={
+                            responsesByEvent.get(event.id) ?? []
+                          }
+                          approvedMemberCount={
+                            isAdmin ? approvedMemberCount : undefined
+                          }
+                          event={event}
+                          isAdmin={isAdmin}
+                          isHighlighted={event.id === sharedEventId}
+                          isPast={false}
+                          key={event.id}
+                          members={isAdmin ? members : []}
+                          onDelete={handleOpenDelete}
+                          onEdit={handleOpenEdit}
+                          onResponseSaved={handleResponseSaved}
+                          response={myResponses.get(event.id)}
+                          userId={userId}
+                        />
+                      ))}
+                    </ul>
+                    <Pagination
+                      className="mt-4"
+                      disabled={isRefreshing}
+                      itemLabel="eventi"
+                      onPageChange={(nextPage) =>
+                        handlePageChange("upcoming", nextPage)
+                      }
+                      page={upcomingPage}
+                      pageCount={upcomingPageCount}
+                      pageSize={EVENT_PAGE_SIZE}
+                      total={upcomingTotal}
+                    />
+                  </>
+                ) : (
+                  <div
+                    className="mt-4 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                    role="status"
+                  >
+                    <CalendarIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
+                    <h3 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                      Nessun evento in programma
+                    </h3>
+                    <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                      {isAdmin
+                        ? "Crea il primo evento per iniziare a raccogliere le adesioni dei soci."
+                        : "Gli eventi creati dagli amministratori compariranno qui."}
+                    </p>
+                    {isAdmin ? (
+                      <button
+                        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                        onClick={() => {
+                          setNotice(null);
+                          setIsCreateOpen(true);
+                        }}
+                        type="button"
+                      >
+                        <PlusIcon className="h-5 w-5" />
+                        Crea un evento
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </section>
+            ) : null}
+
+            {pastTotal > 0 ? (
+              <section
+                className="mt-10 scroll-mt-24 border-t border-zinc-200 pt-8 dark:border-zinc-800"
+                ref={pastSectionRef}
+              >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-50">
                     Eventi passati
                   </h2>
                   <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
-                    {pastEvents.length}{" "}
-                    {pastEvents.length === 1 ? "evento" : "eventi"}
+                    {pastTotal}{" "}
+                    {pastTotal === 1 ? "evento" : "eventi"}
                   </p>
                 </div>
 
@@ -455,6 +826,9 @@ export function EventsPage() {
                   {pastEvents.map((event) => (
                     <EventCard
                       allResponses={responsesByEvent.get(event.id) ?? []}
+                      approvedMemberCount={
+                        isAdmin ? approvedMemberCount : undefined
+                      }
                       event={event}
                       isAdmin={isAdmin}
                       isHighlighted={event.id === sharedEventId}
@@ -469,6 +843,19 @@ export function EventsPage() {
                     />
                   ))}
                 </ul>
+
+                <Pagination
+                  className="mt-4"
+                  disabled={isRefreshing}
+                  itemLabel="eventi"
+                  onPageChange={(nextPage) =>
+                    handlePageChange("past", nextPage)
+                  }
+                  page={pastPage}
+                  pageCount={pastPageCount}
+                  pageSize={EVENT_PAGE_SIZE}
+                  total={pastTotal}
+                />
               </section>
             ) : null}
           </>

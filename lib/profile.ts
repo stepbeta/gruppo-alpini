@@ -1,3 +1,13 @@
+import {
+  buildIlikeOr,
+  getPageCount,
+  getPageRange,
+  normalizePage,
+  normalizePageSize,
+  type CountResult,
+  type PaginationInfo,
+  type PaginationParams,
+} from "./pagination";
 import { supabase } from "./supabase";
 
 /**
@@ -38,6 +48,17 @@ export type Member = Pick<
   | "is_admin"
   | "approval_status"
 >;
+
+export type MembersQuery = PaginationParams & {
+  /** Matches the full name or the service place. */
+  search?: string;
+  approvalStatus?: ApprovalStatus;
+};
+
+export type MembersPage = PaginationInfo & {
+  members: Member[];
+  error: string | null;
+};
 
 /**
  * Label used for historical rows whose profile was deleted. The row itself is
@@ -153,30 +174,150 @@ export async function saveProfile(
 }
 
 /**
- * Reads every member profile for the authenticated directory.
+ * Reads one page of member profiles for the authenticated directory.
  *
- * RLS returns only approved profiles to regular members. Administrators also
- * receive pending and rejected accounts so they can decide on registrations.
+ * Filtering, sorting and counting happen in Postgres. RLS returns only
+ * approved profiles to regular members; administrators also receive pending
+ * and rejected accounts so they can decide on registrations.
  */
-export async function fetchMembers(): Promise<{
+export async function fetchMembers(
+  params: MembersQuery = {},
+): Promise<MembersPage> {
+  const page = normalizePage(params.page);
+  const pageSize = normalizePageSize(params.pageSize);
+  const emptyPage = {
+    members: [] as Member[],
+    page,
+    pageSize,
+    total: 0,
+    pageCount: 0,
+  };
+
+  if (!supabase) {
+    return { ...emptyPage, error: "Supabase non configurato." };
+  }
+
+  try {
+    let query = supabase
+      .from("profiles")
+      .select(MEMBER_COLUMNS, { count: "exact" });
+
+    if (params.approvalStatus) {
+      query = query.eq("approval_status", params.approvalStatus);
+    }
+
+    const searchFilter = buildIlikeOr(
+      ["full_name", "service_place"],
+      params.search,
+    );
+
+    if (searchFilter) {
+      query = query.or(searchFilter);
+    }
+
+    const { from, to } = getPageRange(page, pageSize);
+    const { data, error, count } = await query
+      .order("full_name", { ascending: true, nullsFirst: false })
+      .order("id", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      return { ...emptyPage, error: error.message };
+    }
+
+    const total = count ?? 0;
+
+    return {
+      members: (data as Member[] | null) ?? [],
+      page,
+      pageSize,
+      total,
+      pageCount: getPageCount(total, pageSize),
+      error: null,
+    };
+  } catch (error) {
+    return { ...emptyPage, error: errorMessage(error) };
+  }
+}
+
+/** Exact number of profiles visible to the caller, optionally by status. */
+export async function fetchMemberCount(
+  approvalStatus?: ApprovalStatus,
+): Promise<CountResult> {
+  if (!supabase) {
+    return { count: 0, error: "Supabase non configurato." };
+  }
+
+  try {
+    let query = supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true });
+
+    if (approvalStatus) {
+      query = query.eq("approval_status", approvalStatus);
+    }
+
+    const { count, error } = await query;
+
+    if (error) {
+      return { count: 0, error: error.message };
+    }
+
+    return { count: count ?? 0, error: null };
+  } catch (error) {
+    return { count: 0, error: errorMessage(error) };
+  }
+}
+
+/**
+ * Loads only the member rows needed by a page of events or requests instead of
+ * downloading the whole directory.
+ */
+export async function fetchMembersByIds(ids: string[]): Promise<{
   members: Member[];
   error: string | null;
 }> {
+  const uniqueIds = [...new Set(ids.filter((id) => id.length > 0))];
+
+  if (uniqueIds.length === 0) {
+    return { members: [], error: null };
+  }
+
   if (!supabase) {
     return { members: [], error: "Supabase non configurato." };
   }
 
-  try {
-    const { data, error } = await supabase
-      .from("profiles")
-      .select(MEMBER_COLUMNS)
-      .order("full_name", { ascending: true, nullsFirst: false });
+  // Long `in` filters can exceed the gateway URL limit on large groups, so the
+  // ids are requested in batches.
+  const batches: string[][] = [];
+  for (let index = 0; index < uniqueIds.length; index += 100) {
+    batches.push(uniqueIds.slice(index, index + 100));
+  }
 
-    if (error) {
-      return { members: [], error: error.message };
+  const client = supabase;
+
+  try {
+    const results = await Promise.all(
+      batches.map((batch) =>
+        client
+          .from("profiles")
+          .select(MEMBER_COLUMNS)
+          .in("id", batch),
+      ),
+    );
+
+    const failed = results.find((result) => result.error);
+
+    if (failed?.error) {
+      return { members: [], error: failed.error.message };
     }
 
-    return { members: (data as Member[] | null) ?? [], error: null };
+    return {
+      members: results.flatMap(
+        (result) => (result.data as Member[] | null) ?? [],
+      ),
+      error: null,
+    };
   } catch (error) {
     return { members: [], error: errorMessage(error) };
   }

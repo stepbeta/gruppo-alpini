@@ -1,3 +1,12 @@
+import {
+  buildIlikeOr,
+  getPageCount,
+  getPageRange,
+  normalizePage,
+  normalizePageSize,
+  type PaginationInfo,
+  type PaginationParams,
+} from "./pagination";
 import { supabase } from "./supabase";
 
 export type EventResponseStatus = "present" | "tentative" | "absent";
@@ -37,6 +46,19 @@ export type EventDateInput = {
 export type ParsedEventDateTime = {
   date: Date;
   isAllDay: boolean;
+};
+
+export type EventScope = "upcoming" | "past";
+
+export type EventsQuery = PaginationParams & {
+  scope: EventScope;
+  /** Matches title, location or description. */
+  search?: string;
+};
+
+export type EventsPage = PaginationInfo & {
+  events: EventRecord[];
+  error: string | null;
 };
 
 const EVENT_COLUMNS =
@@ -219,42 +241,132 @@ export function maskItalianTimeInput(value: string): string {
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
-export async function fetchEvents(): Promise<{
-  events: EventRecord[];
-  error: string | null;
-}> {
+/**
+ * Mirrors the client-side upcoming/past rules in PostgREST syntax.
+ *
+ * All-day events are stored at UTC midnight and stay upcoming for the whole
+ * local calendar date; timed events switch to past at their exact start time.
+ */
+function eventScopeFilter(scope: EventScope, now: Date): string {
+  const startOfTodayUtc = Date.UTC(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
+  const allDayCutoff = new Date(startOfTodayUtc).toISOString();
+  const timedCutoff = now.toISOString();
+  const comparison = scope === "upcoming" ? "gte" : "lt";
+
+  return [
+    `and(is_all_day.eq.true,event_date.${comparison}.${allDayCutoff})`,
+    `and(is_all_day.eq.false,event_date.${comparison}.${timedCutoff})`,
+  ].join(",");
+}
+
+/**
+ * Reads one page of upcoming or past events with optional server-side search.
+ * The exact count and date range are calculated by PostgREST.
+ */
+export async function fetchEvents(params: EventsQuery): Promise<EventsPage> {
+  const page = normalizePage(params.page);
+  const pageSize = normalizePageSize(params.pageSize);
+  const emptyPage = {
+    events: [] as EventRecord[],
+    page,
+    pageSize,
+    total: 0,
+    pageCount: 0,
+  };
+
   if (!supabase) {
-    return { events: [], error: "Supabase non configurato." };
+    return { ...emptyPage, error: "Supabase non configurato." };
+  }
+
+  try {
+    let query = supabase
+      .from("events")
+      .select(EVENT_COLUMNS, { count: "exact" });
+
+    query = query.or(eventScopeFilter(params.scope, new Date()));
+
+    const searchFilter = buildIlikeOr(
+      ["title", "location", "description"],
+      params.search,
+    );
+
+    if (searchFilter) {
+      query = query.or(searchFilter);
+    }
+
+    const { from, to } = getPageRange(page, pageSize);
+    const ascending = params.scope === "upcoming";
+    const { data, error, count } = await query
+      .order("event_date", { ascending })
+      .order("id", { ascending })
+      .range(from, to);
+
+    if (error) {
+      return { ...emptyPage, error: error.message };
+    }
+
+    const total = count ?? 0;
+
+    return {
+      events: (data as EventRecord[] | null) ?? [],
+      page,
+      pageSize,
+      total,
+      pageCount: getPageCount(total, pageSize),
+      error: null,
+    };
+  } catch (error) {
+    return { ...emptyPage, error: errorMessage(error) };
+  }
+}
+
+/** Loads one event even when it is not on the current calendar page. */
+export async function fetchEventById(
+  eventId: string,
+): Promise<{ event: EventRecord | null; error: string | null }> {
+  if (!supabase) {
+    return { event: null, error: "Supabase non configurato." };
   }
 
   try {
     const { data, error } = await supabase
       .from("events")
       .select(EVENT_COLUMNS)
-      .order("event_date", { ascending: true });
+      .eq("id", eventId)
+      .maybeSingle();
 
     if (error) {
-      return { events: [], error: error.message };
+      return { event: null, error: error.message };
     }
 
-    return { events: (data as EventRecord[] | null) ?? [], error: null };
+    return { event: (data as EventRecord | null) ?? null, error: null };
   } catch (error) {
-    return { events: [], error: errorMessage(error) };
+    return { event: null, error: errorMessage(error) };
   }
 }
 
 /**
- * Reads event responses allowed by RLS.
+ * Reads the responses for the events currently visible on screen.
  *
  * Regular members receive only their own rows; administrators receive every
  * row so they can display attendance totals and the names of responders.
  * Responses whose member account was deleted keep `user_id = NULL` and still
  * count in the historical attendance totals.
  */
-export async function fetchEventResponses(): Promise<{
+export async function fetchEventResponses(eventIds: string[]): Promise<{
   responses: EventResponseRecord[];
   error: string | null;
 }> {
+  const uniqueIds = [...new Set(eventIds.filter((id) => id.length > 0))];
+
+  if (uniqueIds.length === 0) {
+    return { responses: [], error: null };
+  }
+
   if (!supabase) {
     return { responses: [], error: "Supabase non configurato." };
   }
@@ -262,7 +374,8 @@ export async function fetchEventResponses(): Promise<{
   try {
     const { data, error } = await supabase
       .from("event_responses")
-      .select(EVENT_RESPONSE_COLUMNS);
+      .select(EVENT_RESPONSE_COLUMNS)
+      .in("event_id", uniqueIds);
 
     if (error) {
       return { responses: [], error: error.message };

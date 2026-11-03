@@ -2,19 +2,25 @@
 
 import {
   useCallback,
-  useDeferredValue,
   useEffect,
-  useMemo,
+  useRef,
   useState,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { Pagination } from "@/components/pagination";
 import { useAuth } from "@/components/auth-provider";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { getInitials } from "@/lib/display";
-import { fetchMembers, type Member } from "@/lib/profile";
+import {
+  fetchMemberCount,
+  fetchMembers,
+  fetchProfile,
+  type Member,
+} from "@/lib/profile";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
 import {
   AlertCircleIcon,
   CheckCircleIcon,
@@ -27,14 +33,6 @@ import {
   XIcon,
 } from "@/components/icons";
 import { MemberEditDialog } from "./member-edit-dialog";
-
-function normalizeSearch(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
 
 function formatBirthDate(value: string | null): string {
   if (!value) return "Non indicata";
@@ -71,39 +69,50 @@ function formatDirectoryError(message: string): string {
   return message;
 }
 
+const MEMBER_PAGE_SIZE = 8;
+
 export function MembersDirectory() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const userId = user?.id;
 
   const [members, setMembers] = useState<Member[]>([]);
+  const [totalMembers, setTotalMembers] = useState(0);
+  const [totalResults, setTotalResults] = useState(0);
+  const [pageCount, setPageCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [membersError, setMembersError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [query, setQuery] = useState("");
-  const deferredQuery = useDeferredValue(query);
+  const debouncedQuery = useDebouncedValue(query.trim(), 350);
   const [showPendingOnly, setShowPendingOnly] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deletingMember, setDeletingMember] = useState<Member | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const didLoadRef = useRef(false);
+  const listTopRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!userId) return;
 
     let isActive = true;
 
-    fetchMembers().then(({ members: nextMembers, error }) => {
+    fetchProfile(userId).then(({ profile, error }) => {
       if (!isActive) return;
 
       if (error) {
-        setLoadError(formatDirectoryError(error));
+        setProfileError(formatDirectoryError(error));
         setIsLoading(false);
         return;
       }
 
-      setMembers(nextMembers);
-      setLoadError(null);
-      setIsLoading(false);
+      setProfileError(null);
+      setIsAdmin(profile?.is_admin === true);
     });
 
     return () => {
@@ -111,41 +120,91 @@ export function MembersDirectory() {
     };
   }, [userId, reloadKey]);
 
-  const isAdmin = members.some(
-    (member) => member.id === userId && member.is_admin,
-  );
+  useEffect(() => {
+    if (!userId) return;
 
-  const sortedMembers = useMemo(() => {
-    const collator = new Intl.Collator("it", { sensitivity: "base" });
-    return [...members].sort((first, second) =>
-      collator.compare(first.full_name ?? "", second.full_name ?? ""),
-    );
-  }, [members]);
+    let isActive = true;
 
-  const filteredMembers = useMemo(() => {
-    const term = normalizeSearch(deferredQuery);
+    if (didLoadRef.current) {
+      setIsRefreshing(true);
+    }
 
-    return sortedMembers.filter((member) => {
-      if (showPendingOnly && member.approval_status !== "pending") {
-        return false;
+    fetchMembers({
+      page,
+      pageSize: MEMBER_PAGE_SIZE,
+      search: debouncedQuery,
+      approvalStatus: showPendingOnly ? "pending" : undefined,
+    }).then((result) => {
+      if (!isActive) return;
+
+      if (result.error) {
+        setMembersError(formatDirectoryError(result.error));
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
       }
 
-      if (!term) return true;
+      if (page > Math.max(1, result.pageCount)) {
+        setPage(Math.max(1, result.pageCount));
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
 
-      const name = normalizeSearch(member.full_name ?? "");
-      const place = normalizeSearch(member.service_place ?? "");
-      return name.includes(term) || place.includes(term);
+      setMembers(result.members);
+      setTotalResults(result.total);
+      setPageCount(result.pageCount);
+      setMembersError(null);
+      setIsLoading(false);
+      setIsRefreshing(false);
+      didLoadRef.current = true;
     });
-  }, [sortedMembers, deferredQuery, showPendingOnly]);
 
-  const pendingCount = useMemo(
-    () =>
-      members.filter((member) => member.approval_status === "pending").length,
-    [members],
-  );
+    return () => {
+      isActive = false;
+    };
+  }, [userId, page, debouncedQuery, showPendingOnly, reloadKey]);
 
-  const hasSearch = deferredQuery.trim().length > 0;
-  const hasMembers = members.length > 0;
+  useEffect(() => {
+    if (!userId) return;
+
+    let isActive = true;
+
+    fetchMemberCount().then(({ count }) => {
+      if (!isActive) return;
+      setTotalMembers(count);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId, reloadKey]);
+
+  useEffect(() => {
+    if (!userId || !isAdmin) {
+      return;
+    }
+
+    let isActive = true;
+
+    fetchMemberCount("pending").then(({ count }) => {
+      if (!isActive) return;
+      setPendingCount(count);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, [userId, isAdmin, reloadKey]);
+
+  const hasSearch = debouncedQuery.length > 0;
+  const hasDirectory = totalMembers > 0 || totalResults > 0;
+  const isFiltering = hasSearch || showPendingOnly;
+  const hasResults = members.length > 0;
+  const loadError = profileError ?? membersError;
+  const rangeStart =
+    totalResults === 0 ? 0 : (page - 1) * MEMBER_PAGE_SIZE + 1;
+  const rangeEnd = Math.min(page * MEMBER_PAGE_SIZE, totalResults);
 
   const handleCloseEditor = useCallback(() => {
     setEditingMember(null);
@@ -153,18 +212,12 @@ export function MembersDirectory() {
 
   const handleMemberSaved = useCallback(
     (updatedMember: Member) => {
-      const previousMember = members.find(
-        (member) => member.id === updatedMember.id,
-      );
+      const previousMember = editingMember;
       const displayName =
         updatedMember.full_name?.trim() || "questo iscritto";
 
-      setMembers((current) =>
-        current.map((member) =>
-          member.id === updatedMember.id ? updatedMember : member,
-        ),
-      );
       setEditingMember(null);
+      setReloadKey((current) => current + 1);
 
       if (
         previousMember &&
@@ -182,7 +235,7 @@ export function MembersDirectory() {
 
       setNotice(`Scheda di ${displayName} aggiornata.`);
     },
-    [members],
+    [editingMember],
   );
 
   const handleRequestDelete = useCallback((member: Member) => {
@@ -202,11 +255,9 @@ export function MembersDirectory() {
     const deletedName =
       deletingMember.full_name?.trim() || "questo iscritto";
 
-    setMembers((current) =>
-      current.filter((member) => member.id !== deletedId),
-    );
     setDeletingMember(null);
     setNotice(`Scheda di ${deletedName} eliminata.`);
+    setReloadKey((current) => current + 1);
 
     // An administrator can delete their own account from the directory. The
     // auth user is already gone, so clear the local session and leave.
@@ -220,8 +271,14 @@ export function MembersDirectory() {
 
   function handleRetry() {
     setIsLoading(true);
-    setLoadError(null);
+    setProfileError(null);
+    setMembersError(null);
     setReloadKey((current) => current + 1);
+  }
+
+  function handlePageChange(nextPage: number) {
+    setPage(nextPage);
+    listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
@@ -262,7 +319,10 @@ export function MembersDirectory() {
                       ? "border-amber-500 bg-amber-500 text-amber-950 dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950"
                       : "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
                   }`}
-                  onClick={() => setShowPendingOnly((current) => !current)}
+                  onClick={() => {
+                    setShowPendingOnly((current) => !current);
+                    setPage(1);
+                  }}
                   type="button"
                 >
                   <ClockIcon className="h-4 w-4" />
@@ -274,14 +334,14 @@ export function MembersDirectory() {
               ) : null}
               <p className="inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
                 <UsersIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
-                {members.length}{" "}
-                {members.length === 1 ? "iscritto" : "iscritti"}
+                {totalMembers}{" "}
+                {totalMembers === 1 ? "iscritto" : "iscritti"}
               </p>
             </div>
           ) : null}
         </div>
 
-        {!isLoading && !loadError && hasMembers ? (
+        {!isLoading && !loadError && (hasDirectory || isFiltering) ? (
           <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
             <label className="sr-only" htmlFor="member-search">
               Cerca iscritti per nome o luogo di servizio
@@ -292,7 +352,10 @@ export function MembersDirectory() {
                 autoComplete="off"
                 className="w-full rounded-xl border border-zinc-300 bg-white py-3 pl-11 pr-11 text-base text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500 [&::-webkit-search-cancel-button]:appearance-none"
                 id="member-search"
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Cerca per nome o luogo di servizio…"
                 type="search"
                 value={query}
@@ -301,7 +364,10 @@ export function MembersDirectory() {
                 <button
                   aria-label="Azzera la ricerca"
                   className="absolute right-2 top-1/2 inline-flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                  onClick={() => setQuery("")}
+                  onClick={() => {
+                    setQuery("");
+                    setPage(1);
+                  }}
                   type="button"
                 >
                   <XIcon className="h-4 w-4" />
@@ -314,15 +380,27 @@ export function MembersDirectory() {
                 aria-live="polite"
                 className="text-sm text-zinc-500 dark:text-zinc-400"
               >
-                {showPendingOnly
-                  ? `${filteredMembers.length} account in attesa`
-                  : hasSearch
-                    ? `${filteredMembers.length} ${
-                        filteredMembers.length === 1
-                          ? "iscritto trovato"
-                          : "iscritti trovati"
-                      } su ${members.length}`
-                    : "Digita un nome o un luogo per filtrare la lista."}
+                {isRefreshing ? (
+                  <span className="inline-flex items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-zinc-300 border-t-emerald-700 dark:border-zinc-700 dark:border-t-emerald-400"
+                    />
+                    Aggiornamento della lista…
+                  </span>
+                ) : showPendingOnly ? (
+                  `${totalResults} account in attesa`
+                ) : hasSearch ? (
+                  `${totalResults} ${
+                    totalResults === 1
+                      ? "iscritto trovato"
+                      : "iscritti trovati"
+                  } su ${totalMembers}`
+                ) : (
+                  `Mostrando ${rangeStart}–${rangeEnd} di ${totalResults} ${
+                    totalResults === 1 ? "iscritto" : "iscritti"
+                  }`
+                )}
               </p>
               {query || showPendingOnly ? (
                 <button
@@ -330,6 +408,7 @@ export function MembersDirectory() {
                   onClick={() => {
                     setQuery("");
                     setShowPendingOnly(false);
+                    setPage(1);
                   }}
                   type="button"
                 >
@@ -407,7 +486,7 @@ export function MembersDirectory() {
           </div>
         ) : null}
 
-        {!isLoading && !loadError && !hasMembers ? (
+        {!isLoading && !loadError && !hasDirectory && !isFiltering ? (
           <div
             className="mt-6 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             role="status"
@@ -422,7 +501,7 @@ export function MembersDirectory() {
           </div>
         ) : null}
 
-        {!isLoading && !loadError && hasMembers && filteredMembers.length === 0 ? (
+        {!isLoading && !loadError && isFiltering && !hasResults ? (
           <div
             className="mt-6 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
             role="status"
@@ -443,6 +522,7 @@ export function MembersDirectory() {
               onClick={() => {
                 setQuery("");
                 setShowPendingOnly(false);
+                setPage(1);
               }}
               type="button"
             >
@@ -453,9 +533,10 @@ export function MembersDirectory() {
           </div>
         ) : null}
 
-        {!isLoading && !loadError && filteredMembers.length > 0 ? (
-          <ul className="mt-6 divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-            {filteredMembers.map((member) => {
+        {!isLoading && !loadError && hasResults ? (
+          <div className="scroll-mt-24" ref={listTopRef}>
+            <ul className="mt-6 divide-y divide-zinc-200 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
+              {members.map((member) => {
               const displayName = member.full_name?.trim() || "Nome non indicato";
               const isCurrentUser = member.id === userId;
               const avatarName = member.full_name?.trim() || "Socio";
@@ -544,7 +625,18 @@ export function MembersDirectory() {
                 </li>
               );
             })}
-          </ul>
+            </ul>
+            <Pagination
+              className="mt-4"
+              disabled={isRefreshing}
+              itemLabel="iscritti"
+              onPageChange={handlePageChange}
+              page={page}
+              pageCount={pageCount}
+              pageSize={MEMBER_PAGE_SIZE}
+              total={totalResults}
+            />
+          </div>
         ) : null}
       </main>
 

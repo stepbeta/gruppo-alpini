@@ -170,7 +170,10 @@ type EventCardProps = {
   event: EventRecord;
   response: EventResponseRecord | undefined;
   allResponses: EventResponseRecord[];
+  /** Members loaded for the responders visible on this page. */
   members: Member[];
+  /** Total approved members, used for the "not responded" summary. */
+  approvedMemberCount?: number;
   userId: string;
   isAdmin: boolean;
   isPast: boolean;
@@ -185,6 +188,7 @@ export function EventCard({
   response,
   allResponses,
   members,
+  approvedMemberCount,
   userId,
   isAdmin,
   isPast,
@@ -224,26 +228,32 @@ export function EventCard({
 
   for (const item of allResponses) {
     const memberName = item.user_id
-      ? memberNames.get(item.user_id)
+      ? memberNames.get(item.user_id) ?? "Socio"
       : DELETED_MEMBER_NAME;
 
-    namesByStatus[item.status].push(memberName ?? DELETED_MEMBER_NAME);
+    namesByStatus[item.status].push(memberName);
   }
 
   for (const names of Object.values(namesByStatus)) {
     names.sort((first, second) => collator.compare(first, second));
   }
 
+  const inactiveResponderIds = new Set(
+    members
+      .filter((member) => member.approval_status !== "approved")
+      .map((member) => member.id),
+  );
   const respondedIds = new Set(
     allResponses
       .map((item) => item.user_id)
-      .filter((id): id is string => id !== null),
+      .filter(
+        (id): id is string => id !== null && !inactiveResponderIds.has(id),
+      ),
   );
-  const noResponseNames = members
-    .filter((member) => member.approval_status === "approved")
-    .filter((member) => !respondedIds.has(member.id))
-    .map(memberDisplayName)
-    .sort((first, second) => collator.compare(first, second));
+  const nonResponderCount =
+    approvedMemberCount === undefined
+      ? null
+      : Math.max(0, approvedMemberCount - respondedIds.size);
 
   async function handleResponse(status: EventResponseStatus) {
     if (isSaving || isPast || response?.status === status) return;
@@ -556,31 +566,22 @@ export function EventCard({
               </div>
             </div>
 
-            {members.length > 0 ? (
+            {nonResponderCount !== null &&
+            approvedMemberCount !== undefined &&
+            approvedMemberCount > 0 ? (
               <div className="mt-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900">
                 <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
-                  Non hanno ancora risposto ({noResponseNames.length})
+                  Non hanno ancora risposto ({nonResponderCount})
                 </p>
-                {noResponseNames.length > 0 ? (
-                  <ul className="mt-2 grid gap-1.5 text-sm leading-6 text-zinc-700 sm:grid-cols-2 dark:text-zinc-200">
-                    {noResponseNames.map((name, index) => (
-                      <li
-                        className="flex items-start gap-2"
-                        key={`${name}-${index}`}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400 dark:bg-zinc-500"
-                        />
-                        <span className="break-words">{name}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-                    Tutti i soci hanno risposto.
-                  </p>
-                )}
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  {nonResponderCount === 0
+                    ? "Tutti i soci hanno risposto."
+                    : `${nonResponderCount} ${
+                        nonResponderCount === 1 ? "socio" : "soci"
+                      } non ${
+                        nonResponderCount === 1 ? "ha" : "hanno"
+                      } ancora indicato la propria presenza.`}
+                </p>
               </div>
             ) : null}
           </div>

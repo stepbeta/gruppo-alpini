@@ -183,6 +183,14 @@ export function EyeOffIcon({ className }: IconProps) {
   );
 }
 
+export function ArrowLeftIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M20 12H4M10 6l-6 6 6 6" />
+    </IconBase>
+  );
+}
+
 export function ArrowRightIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>
