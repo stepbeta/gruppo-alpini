@@ -110,6 +110,15 @@ export function CalendarIcon({ className }: IconProps) {
   );
 }
 
+export function BookOpenIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M12 6.5C10.5 5.2 8.6 4.5 6 4.5H3v13.8h3c2.6 0 4.5.7 6 2 1.5-1.3 3.4-2 6-2h3V4.5h-3c-2.6 0-4.5.7-6 2Z" />
+      <path d="M12 6.5v13.8" />
+    </IconBase>
+  );
+}
+
 export function PlusIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>

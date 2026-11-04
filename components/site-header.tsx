@@ -8,6 +8,7 @@ import { AnnouncementBanner } from "./announcement-banner";
 import { getInitials, getUserDisplayName } from "@/lib/display";
 import { useAuth } from "./auth-provider";
 import {
+  BookOpenIcon,
   CalendarIcon,
   HomeIcon,
   LogOutIcon,
@@ -24,10 +25,14 @@ const navItems = [
   { href: "/profile", label: "Profilo", icon: UserIcon },
 ];
 
-const mobileNavItems = navItems.filter((item) => item.href !== "/");
+const adminNavItem = {
+  href: "/admin/manuale",
+  label: "Manuale",
+  icon: BookOpenIcon,
+};
 
 export function SiteHeader() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -35,6 +40,10 @@ export function SiteHeader() {
 
   const displayName = getUserDisplayName(user);
   const initials = getInitials(displayName);
+  const visibleNavItems = isAdmin ? [...navItems, adminNavItem] : navItems;
+  const visibleMobileNavItems = visibleNavItems.filter(
+    (item) => item.href !== "/",
+  );
 
   async function handleSignOut() {
     setSignOutError(null);
@@ -67,9 +76,9 @@ export function SiteHeader() {
 
           <nav
             aria-label="Navigazione principale"
-            className="hidden items-center gap-1 md:flex"
+            className="hidden items-center gap-1 lg:flex"
           >
-            {navItems.map((item) => {
+            {visibleNavItems.map((item) => {
               const isActive =
                 item.href === "/"
                   ? pathname === "/"
@@ -118,9 +127,11 @@ export function SiteHeader() {
 
         <nav
           aria-label="Navigazione mobile"
-          className="mt-2 grid grid-cols-2 gap-1 sm:grid-cols-4 md:hidden"
+          className={`mt-2 grid grid-cols-2 gap-1 lg:hidden ${
+            isAdmin ? "sm:grid-cols-5" : "sm:grid-cols-4"
+          }`}
         >
-          {mobileNavItems.map((item) => {
+          {visibleMobileNavItems.map((item) => {
             const isActive = pathname.startsWith(item.href);
             const Icon = item.icon;
 

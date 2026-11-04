@@ -17,6 +17,7 @@ import {
   fetchProfile,
   formatProfileError,
   type ApprovalStatus as MemberApprovalStatus,
+  type Profile,
 } from "@/lib/profile";
 import { supabase } from "@/lib/supabase";
 
@@ -45,7 +46,11 @@ type ConsentCheck =
   | { userId: string; status: "error"; message: string };
 
 type ApprovalCheck =
-  | { userId: string; status: MemberApprovalStatus }
+  | {
+      userId: string;
+      status: MemberApprovalStatus;
+      profile: Profile;
+    }
   | { userId: string; status: "error"; message: string };
 
 type AuthContextValue = {
@@ -53,6 +58,8 @@ type AuthContextValue = {
   session: Session | null;
   isLoading: boolean;
   isConfigured: boolean;
+  /** True once the signed-in member's profile has loaded as an administrator. */
+  isAdmin: boolean;
   signOut: () => Promise<{ error: string | null }>;
   consentStatus: ConsentStatus;
   consentError: string | null;
@@ -101,6 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     approvalCheck.status === "error"
       ? approvalCheck.message
       : null;
+  const isAdmin =
+    consentStatus === "accepted" &&
+    approvalCheck !== null &&
+    approvalCheck.userId === userId &&
+    "profile" in approvalCheck &&
+    approvalCheck.profile.is_admin === true;
 
   useEffect(() => {
     if (!supabase) {
@@ -199,6 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // if their own row is pending or rejected, so a bad status can never
         // lock every administrator out of account repair.
         status: profile.is_admin ? "approved" : profile.approval_status,
+        profile,
       });
     });
 
@@ -262,6 +276,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       isLoading,
       isConfigured: supabase !== null,
+      isAdmin,
       signOut,
       consentStatus,
       consentError,
@@ -274,6 +289,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [
       session,
       isLoading,
+      isAdmin,
       signOut,
       consentStatus,
       consentError,

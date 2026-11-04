@@ -4,8 +4,8 @@
 | --- | --- |
 | Document type | Current-state technical and functional overview |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 3 November 2026 |
-| Evidence base | Application code, all 17 SQL migrations, and `README.md` |
+| Snapshot date | 4 November 2026 |
+| Evidence base | Application code, all 18 SQL migrations, and `README.md` |
 | Audience | Maintainers, administrators, technical reviewers, and future contributors |
 | Companion document | `README.md` for installation, deployment, migrations, and troubleshooting |
 
@@ -38,7 +38,7 @@ The application has five practical access levels. There is no separate role tabl
 | **Unconsented authenticated account** | Signed in, but no consent row for the current policy version | See the blocking `Consenso necessario` screen, record consent, delete their own account, and sign out | Enter the portal through the UI; read member-data tables covered by the consent-restrictive policies |
 | **Pending or rejected member** | Signed in and consent accepted, but `approval_status` is not `approved` | See the `Account in attesa di approvazione` or rejection screen, export their own data, delete their own account, and sign out | Read the directory, events, responses, requests, announcements, or shop data |
 | **Approved member** | `approval_status = 'approved'` | Use the home page, member directory, event calendar and RSVP, personal request form and history, announcement banner, profile, credentials, export, and self-deletion | Use administrative controls, read other members' RSVPs, or read the secretariat board |
-| **Administrator** | `profiles.is_admin = true` | Everything an approved member can do, plus approve/reject accounts, edit member profiles, create/edit/delete events, see all RSVPs and attendance totals, read and resolve all requests, manage announcements, export another member's data, and delete another member's account | The database still enforces consent and approval; the role is not a bypass around those gates |
+| **Administrator** | `profiles.is_admin = true` | Everything an approved member can do, plus approve/reject accounts, edit member profiles, create/edit/delete events, see all RSVPs and attendance totals, read and resolve all requests, manage announcements, export another member's data, delete another member's account, and read the in-app administrator manual | The database still enforces privacy consent; administrator status is deliberately treated as approved, so the role is not a bypass around the consent gate |
 
 Administrators are treated as approved by both the database helper `is_current_user_approved()` and the client. This is deliberate: an accidentally rejected administrator must not lose the ability to repair accounts. The privacy-consent requirement still applies to administrators.
 
@@ -50,14 +50,14 @@ There is also a machine role, `service_role`, used only by the server-side accou
 | --- | --- | --- |
 | **Identity and access** | Email/password sign-up and sign-in, Google OAuth, email confirmation, password recovery, password change, email change, provider-aware credential UI, Italian error messages, safe post-login redirects | `/login`, `/login/forgot`, `/login/reset-password`, `/profile` |
 | **Onboarding and consent** | First-login blocking privacy consent, versioned consent history, acceptance alternatives (sign out or delete account), administrator approval workflow | `PrivacyConsentGate`, `ApprovalGate`, `/profile` |
-| **Home** | Personal greeting, quick links, administrator shortcuts, announcement banner | `/` |
+| **Home** | Personal greeting, quick links, administrator shortcuts (including the manual), announcement banner | `/` |
 | **Member directory** | Approved-member directory, name/service-place search, server-side pagination, administrator pending filter, profile editing, approval badges, deletion | `/iscritti` |
 | **Events and RSVP** | Upcoming and past event lists, search, pagination, Italian date/time input, all-day events, `Presente` / `In forse` / `Assente` responses, attendance totals and names for administrators, event CRUD, reusable event templates, shareable deep links | `/eventi` |
 | **Requests** | Personal request submission and history, secretariat board for administrators, status filtering, open/resolved counts, resolve/reopen actions | `/richieste` |
 | **Announcements** | Platform-wide banner, optional scheduling window, activation toggle, administrator CRUD, live refresh after changes | `/avvisi`, header banner |
 | **Profile and credentials** | Editable personal data, password and email management for email/password accounts, Google-account notice, data export, account deletion | `/profile` |
 | **Privacy and data rights** | Public policy page, dynamic controller details, JSON/text/HTML export, account deletion and anonymization, consent history | `/privacy`, `/profile`, `/iscritti` |
-| **Administration** | Approval decisions, member maintenance, event management, request board, announcement management, cross-member export and deletion | Admin controls embedded in the normal pages |
+| **Administration** | Approval decisions, member maintenance, event management, request board, announcement management, cross-member export and deletion, in-app administrator manual | Admin controls embedded in the normal pages; `/admin/manuale` |
 
 ### 1.4 End-to-end journeys
 
@@ -241,6 +241,8 @@ Post-login deep links use two mechanisms. Email/password sign-in keeps the desti
 
 Every authenticated page renders its content inside `AuthGuard`, and the interactive data screens are client components; route files are server components when they need static `metadata`. The root layout only provides the HTML shell, fonts, `AuthProvider`, and `PostAuthRedirect`. This keeps session handling in one place and avoids server-side session cookies.
 
+`/admin/manuale` follows the same pattern but adds one client-side check: `AuthProvider` now exposes `isAdmin`, derived from the profile already fetched for the approval gate, and the manual renders an “Accesso riservato” panel for authenticated non-administrators. The page has no database dependency of its own; its content is static and must be updated alongside feature or schema changes. The route appears in the header and in the administrator shortcuts on the home page only when `isAdmin` is true.
+
 `/privacy` is the exception. It is a server-rendered public page, not wrapped in `AuthGuard`, and it reads the single `organization_settings` row through the `anon` role. `getOrganizationSettings()` uses Next.js `"use cache"` with `cacheLife("hours")`, so the page is prerendered and refreshed at most hourly. If Supabase is unconfigured or the migration is missing, it falls back to neutral values rather than failing the build.
 
 The last-modified date shown on the policy page is the later of the settings row's `updated_at` and the last modification of `app/privacy/page.tsx`. `scripts/generate-privacy-meta.mjs` runs before `dev`, `build`, and `typecheck`; it uses the git commit date for a clean file and the later of the commit date and the file mtime for a locally modified file, writing the git-ignored `lib/generated/privacy-page-meta.ts`.
@@ -270,6 +272,7 @@ The repository contains a coherent, functioning portal; the status below describ
 | Profile and credential management | Implemented | Profile fields, password, email, Google notice |
 | GDPR data export | Implemented | JSON, text, HTML; self and administrator paths |
 | Account deletion and anonymization | Implemented in code | Requires a server-only service-role or secret key |
+| Administrator manual | Implemented | Admin-only static guide at `/admin/manuale`; must be updated with every feature or schema change |
 | Public privacy policy | Implemented | Server-rendered, cached, dynamic controller details |
 | Administrator lifecycle UI | Partial | Approval and member maintenance exist; admin promotion is SQL-only |
 | Notifications | Not implemented | Only Supabase Auth emails are sent |
@@ -411,6 +414,14 @@ Operationally, the portal depends on:
 - a populated `organization_settings` row for real controller details.
 
 The default Supabase email service is limited to roughly two messages per hour and is not suitable for production password recovery. `gaps.md` records this as the only explicitly tracked known limit. The README documents the required URL configuration and the difference between the public publishable key and the server-only service key.
+
+### 3.11 In-app administrator manual
+
+`/admin/manuale` is a static, Italian-language reference guide for administrators. It is rendered inside `AuthGuard`, so the usual session, consent, and approval gates run first, and it then checks `AuthProvider.isAdmin`; authenticated members who are not administrators see an **Accesso riservato** panel instead of the guide. `isAdmin` is derived from the profile already loaded for the approval check, so the page does not issue a second profile query.
+
+The guide covers the five access levels, closed registration and approvals, member maintenance and cross-member export/deletion, events and RSVP/attendance semantics, event templates, the secretariat board, announcement states and scheduling, versioned consent, GDPR exports, and `ON DELETE SET NULL` anonymization. It is linked from the header and from an administrator-only card on the home page.
+
+The file carries a maintenance rule in its header comment and repeats the rule visibly at the bottom of the page: whenever a feature is added, changed, or removed, or a migration/policy changes, the manual must be updated in the same pull request and `MANUAL_LAST_UPDATED` must be refreshed. The manual requires no migration or new database object.
 
 ## 4. Key Technical Challenges & Design Decisions
 

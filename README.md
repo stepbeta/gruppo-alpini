@@ -26,6 +26,7 @@ gruppo-alpini/
 │   ├── iscritti/        # Member directory + admin profile editing/deletion
 │   ├── richieste/       # Generic requests form + admin secretariat board
 │   ├── avvisi/          # Admin announcement banner management
+│   ├── admin/manuale/   # Admin-only in-app reference guide
 │   ├── api/             # Server-side route handlers (account deletion)
 │   ├── privacy/         # Public, server-rendered privacy policy
 │   └── globals.css      # Tailwind & global styles
@@ -141,7 +142,8 @@ npm run dev
 Open [http://localhost:3000](http://localhost:3000). Unauthenticated visitors are
 redirected to the login page. After signing in, the landing page shows the
 member area, links to `/profile`, `/eventi` and `/iscritti`, and a footer link to
-the public `/privacy` page.
+the public `/privacy` page. Administrators also see a **Manuale amministratore**
+shortcut and a **Manuale** link in the header.
 
 ### Closed registration and account approval
 
@@ -167,6 +169,22 @@ the public `/privacy` page.
 - `is_current_user_approved()` treats administrators as approved so an
   accidental status change cannot lock every administrator out of account
   repair.
+
+### Administrator manual
+
+- `/admin/manuale` is an in-app guide written for administrators, covering
+  roles, closed registration and approvals, member maintenance, events and
+  RSVPs, event templates, the secretariat board, announcements, and privacy
+  operations.
+- The route uses `AuthGuard` and then `AuthProvider.isAdmin`. Approved members
+  who are not administrators see an **Accesso riservato** panel. The manual is
+  linked from the header and from an administrator-only card on the home page;
+  neither link is rendered for other members.
+- The manual is static content. There is no migration or new Supabase policy.
+- Whenever a feature is added, changed, or removed, or a migration/policy
+  changes, update `app/admin/manuale/admin-manual.tsx` in the same pull request
+  and refresh `MANUAL_LAST_UPDATED`. The same rule appears in the file header
+  and at the bottom of the page.
 
 ### Member directory and privacy
 

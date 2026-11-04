@@ -10,6 +10,7 @@ import { getFirstName, getInitials, getUserDisplayName } from "@/lib/display";
 import { fetchProfile, type Profile } from "@/lib/profile";
 import {
   ArrowRightIcon,
+  BookOpenIcon,
   CalendarIcon,
   MailIcon,
   MapPinIcon,
@@ -27,7 +28,7 @@ export default function HomePage() {
 }
 
 function HomeContent() {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const userId = user?.id;
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -50,7 +51,6 @@ function HomeContent() {
   const displayName = profile?.full_name?.trim() || getUserDisplayName(user);
   const firstName = getFirstName(displayName);
   const initials = getInitials(displayName);
-  const isAdmin = profile?.is_admin === true;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -265,29 +265,58 @@ function HomeContent() {
         </section>
 
         {isAdmin ? (
-          <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900 dark:bg-amber-950/30">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-start gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                  <MegaphoneIcon className="h-5 w-5" />
-                </span>
-                <div>
-                  <h2 className="text-base font-semibold text-amber-950 dark:text-amber-100">
-                    Avvisi del portale
-                  </h2>
-                  <p className="mt-1 text-sm leading-6 text-amber-900 dark:text-amber-200">
-                    Pubblica un messaggio in cima a tutte le pagine per
-                    informare i soci.
-                  </p>
+          <section aria-labelledby="admin-tools-heading" className="mt-5">
+            <h2 className="sr-only" id="admin-tools-heading">
+              Strumenti amministratore
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <article className="flex flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900 dark:bg-amber-950/30">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                    <MegaphoneIcon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-semibold text-amber-950 dark:text-amber-100">
+                      Avvisi del portale
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-amber-900 dark:text-amber-200">
+                      Pubblica un messaggio in cima a tutte le pagine per
+                      informare i soci.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <Link
-                className="inline-flex w-fit items-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500"
-                href="/avvisi"
-              >
-                Gestisci gli avvisi
-                <ArrowRightIcon className="h-4 w-4" />
-              </Link>
+                <Link
+                  className="mt-4 inline-flex w-fit items-center gap-2 rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500"
+                  href="/avvisi"
+                >
+                  Gestisci gli avvisi
+                  <ArrowRightIcon className="h-4 w-4" />
+                </Link>
+              </article>
+
+              <article className="flex flex-col justify-between rounded-2xl border border-sky-200 bg-sky-50/70 p-5 dark:border-sky-900 dark:bg-sky-950/30">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
+                    <BookOpenIcon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-semibold text-sky-950 dark:text-sky-100">
+                      Manuale amministratore
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-sky-900 dark:text-sky-200">
+                      Consulta la guida semplice alle funzioni riservate agli
+                      amministratori.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  className="mt-4 inline-flex w-fit items-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 dark:bg-sky-600 dark:hover:bg-sky-500"
+                  href="/admin/manuale"
+                >
+                  Apri il manuale
+                  <ArrowRightIcon className="h-4 w-4" />
+                </Link>
+              </article>
             </div>
           </section>
         ) : null}
