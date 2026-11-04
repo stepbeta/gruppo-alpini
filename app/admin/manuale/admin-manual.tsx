@@ -13,8 +13,8 @@
  * In pratica: questo file racconta come funziona il portale per chi lo
  * amministra. Se cambia un pulsante, un flusso, un ruolo, una regola di
  * approvazione o una policy Supabase, aggiorna anche la sezione corrispondente.
- * Aggiorna inoltre `MANUAL_LAST_UPDATED` e, se serve, il riepilogo in
- * `docs/technical-functional-overview.md`.
+ * Aggiorna inoltre `MANUAL_LAST_UPDATED` e, se serve, i file corrispondenti
+ * nella cartella `docs/architecture/`.
  * ============================================================================
  */
 
@@ -973,7 +973,7 @@ export function AdminManual() {
               <p className="mt-2 text-sm leading-6 text-amber-900 dark:text-amber-200">
                 Aggiorna anche la data di “ultimo aggiornamento” in cima a questa
                 pagina e, se il cambiamento riguarda architettura, sicurezza o
-                dati, il file <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-950/60">docs/technical-functional-overview.md</code>.
+                dati, i file corrispondenti nella cartella <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-950/60">docs/architecture/</code>.
               </p>
             </div>
           </div>
