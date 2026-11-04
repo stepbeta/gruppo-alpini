@@ -32,6 +32,7 @@ import {
 import { DeleteEventDialog } from "./delete-event-dialog";
 import { EventCard } from "./event-card";
 import { EventDialog } from "./event-dialog";
+import { EventTemplatesDialog } from "./event-templates-dialog";
 
 const EVENT_PAGE_SIZE = 5;
 
@@ -88,6 +89,7 @@ export function EventsPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isTemplatesOpen, setIsTemplatesOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<EventRecord | null>(null);
   const [deletingEvent, setDeletingEvent] = useState<EventRecord | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -489,18 +491,29 @@ export function EventsPage() {
           </div>
 
           {isAdmin && !isLoading && !loadError ? (
-            <button
-              aria-haspopup="dialog"
-              className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:w-auto dark:bg-emerald-600 dark:hover:bg-emerald-500"
-              onClick={() => {
-                setNotice(null);
-                setIsCreateOpen(true);
-              }}
-              type="button"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Nuovo evento
-            </button>
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+              <button
+                aria-haspopup="dialog"
+                className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:w-auto dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+                onClick={() => setIsTemplatesOpen(true)}
+                type="button"
+              >
+                <CalendarIcon className="h-5 w-5" />
+                Modelli evento
+              </button>
+              <button
+                aria-haspopup="dialog"
+                className="inline-flex w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:w-auto dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                onClick={() => {
+                  setNotice(null);
+                  setIsCreateOpen(true);
+                }}
+                type="button"
+              >
+                <PlusIcon className="h-5 w-5" />
+                Nuovo evento
+              </button>
+            </div>
           ) : null}
         </div>
 
@@ -871,6 +884,10 @@ export function EventsPage() {
           onClose={handleCloseCreate}
           onSaved={handleEventCreated}
         />
+      ) : null}
+
+      {isAdmin && isTemplatesOpen ? (
+        <EventTemplatesDialog onClose={() => setIsTemplatesOpen(false)} />
       ) : null}
 
       {isAdmin && editingEvent ? (

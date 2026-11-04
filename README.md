@@ -22,7 +22,7 @@ gruppo-alpini/
 │   ├── page.tsx         # Landing page (authenticated members)
 │   ├── login/           # Login, password recovery and new-password pages
 │   ├── profile/         # Member profile, credentials and account deletion
-│   ├── eventi/          # Event calendar, RSVP, admin event creation and totals
+│   ├── eventi/          # Event calendar, RSVP, admin event/template management and totals
 │   ├── iscritti/        # Member directory + admin profile editing/deletion
 │   ├── richieste/       # Generic requests form + admin secretariat board
 │   ├── avvisi/          # Admin announcement banner management
@@ -37,6 +37,7 @@ gruppo-alpini/
 │   ├── auth-redirect.ts # Safe post-login return paths and pending OAuth deep links
 │   ├── profile.ts       # Profile/approval types, read/upsert/admin/delete helpers
 │   ├── events.ts        # Event/RSVP types, formatting and data helpers
+│   ├── event-templates.ts # Event-template types, validation and CRUD helpers
 │   ├── requests.ts      # Generic request types, formatting and data helpers
 │   ├── announcements.ts # Announcement banner types, visibility and CRUD helpers
 │   ├── consent.ts       # Privacy consent check and acceptance
@@ -208,6 +209,13 @@ the public `/privacy` page.
   event's responses. Every event card includes attendance totals plus the
   explicit names of members in each category (present, tentative, absent) and
   optionally those who have not responded yet.
+- Administrators can reuse event details through **Modelli evento**. A template
+  stores title, description, location, all-day flag, and — for timed templates
+  only — a default start time; the date is always chosen per event. Templates
+  can be created, edited, and deleted from the dedicated dialog on `/eventi` or
+  from the create-event form. Selecting a template pre-fills the form without
+  changing the date, and the edit-event form offers **Salva come modello** to
+  capture the current details. Templates are visible only to administrators.
 - Event attribution is database-owned: `created_by` is filled from `auth.uid()`
   on insert and cannot be changed through the API, so an administrator cannot
   forge another member's identity.
@@ -256,15 +264,17 @@ SQL session; the temporary service-role claim is the database-owner escape hatch
   `POST /api/account/delete` with the current access token; the route validates
   the session, checks `is_admin` server-side when the target is another member,
   and only then calls `supabase.auth.admin.deleteUser`.
-- The profile migration changes every historical reference to `profiles(id)` to
-  `ON DELETE SET NULL`:
+- Historical references to `profiles(id)` use `ON DELETE SET NULL` so shared
+  records survive:
   - `events.created_by`
+  - `event_templates.created_by`
   - `event_responses.user_id`
   - `generic_requests.user_id`
   - `purchase_orders.user_id`
-  The auth user and profile are removed, but event RSVPs and requests are kept
-  with a `NULL` author. `event_responses` rows still carry their status, so past
-  event attendance totals remain correct; the UI labels them **Socio eliminato**.
+  The auth user and profile are removed, but event RSVPs, requests, and
+  reusable event templates are kept with a `NULL` author. `event_responses`
+  rows still carry their status, so past event attendance totals remain
+  correct; the UI labels them **Socio eliminato**.
 - Removing an event still deletes its responses, as before.
 
 ### Announcement banners
@@ -336,10 +346,10 @@ SQL session; the temporary service-role claim is the database-owner escape hatch
   delete it later from `/iscritti`.
 - Instead of relying only on the client gate, restrictive RLS policies call
   `has_accepted_privacy_consent()` on `profiles`, `events`, `event_responses`,
-  `generic_requests`, `purchase_items` and `purchase_orders`. An unconsented
-  authenticated account cannot read or write member data even through direct
-  PostgREST calls. Existing members are asked to accept once after this
-  migration is applied — this is expected.
+  `generic_requests`, `event_templates`, `purchase_items` and `purchase_orders`.
+  An unconsented authenticated account cannot read or write member data even
+  through direct PostgREST calls. Existing members are asked to accept once
+  after this migration is applied — this is expected.
 - To find accounts that signed up but never accepted (for example after an
   abandoned registration), run this query in the Supabase SQL editor and delete
   the relevant rows from `/iscritti`:
@@ -480,6 +490,7 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **Events page returns "permission denied" (42501) or an empty list** — apply the Phase 1D migration with `npm run db:push`. It grants API access to `events`/`event_responses` and limits non-admin response reads to the member's own rows.
 - **Admin cannot edit or delete an event** — apply all pending migrations with `npm run db:push`. The Phase 1D delete migration adds the admin-only `DELETE` grant/policy, while editing relies on the existing admin `UPDATE` policy.
 - **Requests page returns "permission denied" (42501) or an empty list** — apply the Phase 1E migration with `npm run db:push`. It grants API access to `generic_requests`, keeps member reads scoped to their own rows, and allows administrators to update only the request status.
+- **Event templates show "tabella non disponibile" or "permission denied"** — apply `supabase/migrations/20261103000000_event_templates.sql` with `npm run db:push`. It creates the admin-only table, grants, triggers, indexes, and RLS policies.
 - **Delete account fails with a server configuration message** — set `SUPABASE_SERVICE_ROLE_KEY` (or `SUPABASE_SECRET_KEY`) in `.env.local` and the hosting provider, then restart `next dev` or rebuild. The variable is server-only and must not use the `NEXT_PUBLIC_` prefix.
 - **Consent screen says the privacy configuration is unavailable** — apply the GDPR migration with `npm run db:push`. It creates `organization_settings` and `user_consents` and installs the restrictive RLS policies.
 - **Every existing member is asked to accept the privacy policy once** — expected after the GDPR migration. Acceptance is stored in `user_consents`; accounts that refuse remain blocked by RLS and can be deleted from `/iscritti`.
@@ -491,8 +502,8 @@ Open the **Run and Debug** panel (`Ctrl+Shift+D` / `⇧⌘D`), pick a configurat
 - **A new account sees “Account in attesa di approvazione”** — expected with closed registration. Sign in as an administrator, open `/iscritti`, click **Modifica** on the pending row and choose **Approva iscritto**. The member can then press **Controlla di nuovo** or reload the page.
 - **The approval screen reports a missing profile structure, or approval controls return a permission error** — apply `20261102030000_member_approval_workflow.sql` with `npm run db:push`. It adds `approval_status`, grandfathers existing profiles as approved and installs the restrictive RLS policies.
 - **Approval buttons are missing for an account** — approval controls are visible only to administrators and are hidden for the administrator's own account. Confirm the signed-in profile has `is_admin = true`.
-- **A pending member can still reach member data through the API** — confirm the approval migration is applied and appears in `npm run db:migrations`. The restrictive policies on `profiles`, `events`, `event_responses`, `generic_requests`, `purchase_items`, `purchase_orders` and `announcement_banners` are the server-side boundary; the waiting screen is only the UI side.
-- **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs and requests survive.
+- **A pending member can still reach member data through the API** — confirm the approval migration is applied and appears in `npm run db:migrations`. The restrictive policies on `profiles`, `events`, `event_responses`, `generic_requests`, `event_templates`, `purchase_items`, `purchase_orders` and `announcement_banners` are the server-side boundary; the waiting screen is only the UI side.
+- **Account deletion returns a foreign-key error** — apply the profile deletion migration with `npm run db:push`. It changes the historical references to `ON DELETE SET NULL` so RSVPs, requests, and templates survive.
 - **An administrator cannot delete another member and the API reports “permission denied for table profiles”** — apply `20261102040000_service_role_profile_access.sql` with `npm run db:push`. The server-side deletion route reads `profiles.is_admin` with the service role, and that role needs an explicit table grant.
 - **Password recovery email never arrives** — verify that `http://localhost:3000/login/reset-password` (and its production equivalent) is in **Authentication → URL Configuration → Redirect URLs**, that Custom SMTP is configured outside local testing, and that the default rate limit has not been reached. Check the spam folder too.
 - **Recovery link says it is invalid or expired** — links are single-use and time-limited. Request a new one from `/login/forgot`; also confirm the reset page is allowed in the Supabase redirect URLs.

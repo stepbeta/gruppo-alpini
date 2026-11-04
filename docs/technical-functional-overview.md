@@ -52,7 +52,7 @@ There is also a machine role, `service_role`, used only by the server-side accou
 | **Onboarding and consent** | First-login blocking privacy consent, versioned consent history, acceptance alternatives (sign out or delete account), administrator approval workflow | `PrivacyConsentGate`, `ApprovalGate`, `/profile` |
 | **Home** | Personal greeting, quick links, administrator shortcuts, announcement banner | `/` |
 | **Member directory** | Approved-member directory, name/service-place search, server-side pagination, administrator pending filter, profile editing, approval badges, deletion | `/iscritti` |
-| **Events and RSVP** | Upcoming and past event lists, search, pagination, Italian date/time input, all-day events, `Presente` / `In forse` / `Assente` responses, attendance totals and names for administrators, event CRUD, shareable deep links | `/eventi` |
+| **Events and RSVP** | Upcoming and past event lists, search, pagination, Italian date/time input, all-day events, `Presente` / `In forse` / `Assente` responses, attendance totals and names for administrators, event CRUD, reusable event templates, shareable deep links | `/eventi` |
 | **Requests** | Personal request submission and history, secretariat board for administrators, status filtering, open/resolved counts, resolve/reopen actions | `/richieste` |
 | **Announcements** | Platform-wide banner, optional scheduling window, activation toggle, administrator CRUD, live refresh after changes | `/avvisi`, header banner |
 | **Profile and credentials** | Editable personal data, password and email management for email/password accounts, Google-account notice, data export, account deletion | `/profile` |
@@ -65,7 +65,7 @@ There is also a machine role, `service_role`, used only by the server-side accou
 
 **Returning access.** The browser restores the Supabase session. `AuthProvider` checks the current policy version, then the profile approval state; `AuthGuard` renders the requested page only when both gates pass. A member who has accepted an older policy version is asked to accept the current one; a pending member remains on the holding screen.
 
-**Event lifecycle.** An administrator creates or edits an event. The browser never supplies `created_by`; the database derives it from `auth.uid()` and rejects a mismatch. Approved members see upcoming and past events, choose an RSVP, and can change it while the event is upcoming. Administrators see attendance totals and explicit names per response status, plus a count of members who have not responded. A shared `/eventi?event=<id>` link survives the login round trip and highlights the event.
+**Event lifecycle.** An administrator creates or edits an event. The browser never supplies `created_by`; the database derives it from `auth.uid()` and rejects a mismatch. Approved members see upcoming and past events, choose an RSVP, and can change it while the event is upcoming. Administrators see attendance totals and explicit names per response status, plus a count of members who have not responded. A shared `/eventi?event=<id>` link survives the login round trip and highlights the event. Administrators can also save reusable event details as templates, apply a template while creating an event, and manage templates from a dedicated dialog; the event date is never part of a template.
 
 **Request lifecycle.** A member submits a message to the secretariat. The member sees only their own requests. An administrator sees the whole board, filters by status or text, and changes a request between `In attesa` and `Risolta`. The only column an administrator can update through the API is `status`.
 
@@ -80,7 +80,7 @@ The current product deliberately stops short of several capabilities:
 - There is no purchase or shop UI. `purchase_items` and `purchase_orders` exist in the initial schema, with RLS policies and deletion handling, but no table grants currently expose them to the API and no application code uses them.
 - There is no email-notification system beyond Supabase authentication emails. Approval, rejection, event changes, and announcements are not pushed to members.
 - There is no separate administrator console or self-service promotion UI. Promoting a member is an operational SQL action using the service role.
-- There is no audit log for administrative actions. Consent history is auditable; approvals, deletions, exports, and event edits are not.
+- There is no audit log for administrative actions. Consent history is auditable; approvals, deletions, exports, event edits, and template edits are not.
 - There is no multi-group or multi-tenant model. The database describes one association.
 - There is no MFA, no passwordless login, and no custom identity provider beyond Supabase Auth and Google.
 - There is no public member directory, public event page, or public RSVP surface.
@@ -149,11 +149,14 @@ The important architectural fact is that **the Next.js server is not the primary
 | --- | --- |
 | `app/` | App Router route segments. Most authenticated pages are thin server wrappers around client components; `/privacy` is a server component; `/api/account/delete` is the only route handler. |
 | `components/` | Shared UI and access gates: `AuthProvider`, `AuthGuard`, `PrivacyConsentGate`, `ApprovalGate`, header/footer, dialogs, forms, pagination, banner, configuration notice. |
-| `lib/` | Domain and data-access helpers: profiles, events, requests, announcements, consent, exports, auth actions, redirects, privacy metadata, pagination, display helpers, and the browser Supabase singleton. |
+| `lib/` | Domain and data-access helpers: profiles, events, event templates, requests, announcements, consent, exports, auth actions, redirects, privacy metadata, pagination, display helpers, and the browser Supabase singleton. |
+| `lib/events.ts` | Event/RSVP types, date parsing/formatting, pagination filters, and CRUD helpers. |
+| `lib/event-templates.ts` | Event-template types, validation, time normalization, CRUD helpers, and conversion of an existing event into template input. |
+| `lib/events.test.ts` | The current Vitest suite for event date parsing, masking, formatting, and event deep-link helpers. |
+| `lib/event-templates.test.ts` | Vitest coverage for template time normalization, event-to-template conversion, validation, and error messages. |
 | `lib/supabase-admin.ts` | Server-only factory for a service-role Supabase client. It is imported only by the account-deletion route. |
 | `supabase/migrations/` | Ordered SQL migrations. These define the real security boundary. |
 | `scripts/generate-privacy-meta.mjs` | Generates the last-modified timestamp used by the public privacy page before `dev`, `build`, and `typecheck`. |
-| `lib/events.test.ts` | The current Vitest suite for date parsing, masking, formatting, and event deep-link helpers. |
 
 `AuthProvider` is the client-side session authority. It subscribes to `onAuthStateChange`, restores the current session, checks the current consent version, and fetches the profile only after consent is accepted. It exposes consent and approval status to `AuthGuard`, which decides between the loading screen, configuration notice, consent gate, approval gate, and the requested page.
 
@@ -165,6 +168,7 @@ The client Supabase singleton is created with `persistSession`, `autoRefreshToke
 | --- | --- | --- |
 | `profiles` | Member identity, directory fields, administrator flag, approval state | `id` is both primary key and a foreign key to `auth.users(id)` with `ON DELETE CASCADE`. `is_admin` defaults to false. `approval_status` is `pending`, `approved`, or `rejected`. |
 | `events` | Calendar entries | `created_by` references `profiles(id)` with `ON DELETE SET NULL`; it is database-owned. `event_date` is `timestamptz`; `is_all_day` distinguishes all-day dates from midnight events. |
+| `event_templates` | Reusable event details for administrators | `created_by` references `profiles(id)` with `ON DELETE SET NULL` and is database-owned. `default_time` is `NULL` for all-day templates and required for timed ones; the event date is not stored. Non-blank title check. |
 | `event_responses` | One RSVP per member per event | Unique `(event_id, user_id)`. `event_id` cascades on event deletion. `user_id` becomes `NULL` on profile deletion; the status remains for historical totals. |
 | `generic_requests` | Messages to the secretariat | `user_id` becomes `NULL` on profile deletion. `message` has a non-blank check. `status` is `open` or `resolved` and defaults to `open`. |
 | `user_consents` | Append-only privacy acceptance history | One row per `(user_id, policy_version)`. `user_id` cascades from `auth.users`. `accepted_at` is forced server-side. No update or delete grant. |
@@ -188,6 +192,7 @@ The main policy matrix is:
 | --- | --- | --- |
 | `profiles` | Read own row and approved profiles; update own row; insert own missing row | Read every row; update any row; the `is_admin` and `id` fields are trigger-protected for non-admins |
 | `events` | Read all rows, subject to consent and approval gates | Insert, update, delete; inserts require `created_by = auth.uid()` and the attribution trigger |
+| `event_templates` | No access | Read, insert, update, delete; inserts require `created_by = auth.uid()` and the attribution trigger |
 | `event_responses` | Read and upsert only their own response | Read every response for attendance totals; still write only their own response |
 | `generic_requests` | Read own rows; insert own row | Read every row; update `status` on any row. The column-level grant prevents message or owner rewrites |
 | `announcement_banners` | Read only active rows inside their display window | Read every row; create, update, delete |
@@ -197,8 +202,8 @@ The main policy matrix is:
 
 On top of the table policies, two restrictive layers apply:
 
-- **Privacy consent.** `has_accepted_privacy_consent()` is a `SECURITY DEFINER` helper. Restrictive policies require it on `profiles`, `events`, `event_responses`, `generic_requests`, `purchase_items`, and `purchase_orders`. The helper returns true for any recorded consent version; the client is responsible for requiring the current version.
-- **Account approval.** `is_current_user_approved()` requires `approval_status = 'approved'` or `is_admin = true`. Restrictive policies require it on events, responses, requests, purchase tables, and announcement banners. The profile read policy separately allows an account to read its own row so the holding screen can explain the situation.
+- **Privacy consent.** `has_accepted_privacy_consent()` is a `SECURITY DEFINER` helper. Restrictive policies require it on `profiles`, `events`, `event_responses`, `generic_requests`, `event_templates`, `purchase_items`, and `purchase_orders`. The helper returns true for any recorded consent version; the client is responsible for requiring the current version.
+- **Account approval.** `is_current_user_approved()` requires `approval_status = 'approved'` or `is_admin = true`. Restrictive policies require it on events, responses, requests, event templates, purchase tables, and announcement banners. The profile read policy separately allows an account to read its own row so the holding screen can explain the situation.
 
 The helpers are `SECURITY DEFINER` for a specific reason: a policy on `profiles` that queries `profiles` would otherwise recurse. Running the small lookup as the function owner bypasses RLS for that lookup while keeping the authorization decision explicit.
 
@@ -242,9 +247,9 @@ The last-modified date shown on the policy page is the later of the settings row
 
 ### 2.9 Delivery and quality model
 
-The schema is delivered as 17 ordered migrations. The latest migration in this snapshot is `20261102040000_service_role_profile_access.sql`. Migrations are applied with the Supabase CLI; the Next.js deployment does not run them automatically, so a frontend release and its required database changes must be coordinated operationally.
+The schema is delivered as 18 ordered migrations. The latest migration in this snapshot is `20261103000000_event_templates.sql`. Migrations are applied with the Supabase CLI; the Next.js deployment does not run them automatically, so a frontend release and its required database changes must be coordinated operationally.
 
-The test suite is intentionally narrow. Vitest runs in a Node environment and currently covers pure event helpers: Italian date parsing, leap years, invalid dates and times, input masking, display formatting, and event deep-link construction. Coverage is generated with V8 and uploaded as a CI artifact, but there is no coverage threshold. The latest recorded baseline was approximately 35.9% statements, 34.8% branches, 30.8% functions, and 34.6% lines.
+The test suite is intentionally narrow. Vitest runs in a Node environment and currently covers pure event helpers: Italian date parsing, leap years, invalid dates and times, input masking, display formatting, and event deep-link construction, plus event-template validation and time normalization. Coverage is generated with V8 and uploaded as a CI artifact, but there is no coverage threshold. The latest recorded baseline was approximately 37.0% statements, 41.6% branches, 34.2% functions, and 35.6% lines.
 
 CI runs `npx next typegen`, then typecheck, lint, and tests with coverage. It does not run `next build`, apply migrations, or execute database/RLS tests. Those remain local or manual checks.
 
@@ -259,7 +264,7 @@ The repository contains a coherent, functioning portal; the status below describ
 | First-login privacy consent | Implemented | Blocking gate, versioned history, server timestamp |
 | Closed registration and approval | Implemented | Pending, approved, rejected; admin-only decisions |
 | Member directory | Implemented | Server-side pagination, search, admin editing and pending filter |
-| Events and RSVP | Implemented | Upcoming/past, all-day events, attendance names and totals, sharing |
+| Events and RSVP | Implemented | Upcoming/past, all-day events, attendance names and totals, reusable templates, sharing |
 | Requests and secretariat board | Implemented | Personal scope, admin board, status-only mutation |
 | Announcement banners | Implemented | Scheduling, activation, admin CRUD, header refresh |
 | Profile and credential management | Implemented | Profile fields, password, email, Google notice |
@@ -305,6 +310,8 @@ Event sharing uses the Web Share API when available and falls back to copying `/
 Event attribution is database-owned. `createEvent` omits `created_by`; the `set_event_created_by` trigger fills it from `auth.uid()`, rejects a mismatched client value on insert, and blocks changes on update except for the service role or the specific profile-deletion case where the author no longer exists. The insert policy also requires `created_by = auth.uid()`, so attribution does not depend on the trigger alone.
 
 Non-admin members see only their own responses because the original `FOR ALL` policy remains owner-scoped. Administrators get an additional select policy that exposes every response for attendance totals. This is a deliberately narrow exception rather than a broad "authenticated can read responses" rule.
+
+Event templates are an administrator-only convenience. A template stores a title, optional description and location, an all-day flag, and — only for timed templates — a default start time. The scheduled date is deliberately excluded so the same template can be reused on different dates. Administrators can create and edit templates in the **Modelli evento** dialog, reachable from the events page and from the create-event form, or save the current form values of an existing event as a new template. While creating an event, selecting a template fills the title, location, description, and time but leaves the date untouched; the page shows guidance and an inline shortcut when no templates exist. The database enforces the same rules as the UI: non-blank titles, a time exactly when `is_all_day` is false, database-owned `created_by`, and admin-only RLS with consent and approval layers.
 
 ### 3.4 Requests and the secretariat board
 
@@ -355,14 +362,15 @@ The browser never holds the service-role key. It calls `POST /api/account/delete
 5. For another member, reads `profiles.is_admin` with the service role and returns `403` unless the caller is an administrator.
 6. Calls `admin.auth.admin.deleteUser(targetUserId)`.
 
-Deleting the auth user cascades to `profiles`. The profile-deletion migration changes the historical references to `ON DELETE SET NULL`:
+Deleting the auth user cascades to `profiles`. Historical references use `ON DELETE SET NULL` so shared records survive:
 
 - `events.created_by`
+- `event_templates.created_by`
 - `event_responses.user_id`
 - `generic_requests.user_id`
 - `purchase_orders.user_id`
 
-Event responses keep their status, so past attendance totals remain correct; the UI identifies the author as `Socio eliminato`. Deleting an event still cascades to its responses. Consent rows cascade from `auth.users`, so the consent audit history is removed with the account, as the privacy policy states.
+Event responses keep their status, so past attendance totals remain correct; the UI identifies the author as `Socio eliminato`. Event templates are retained as shared administrative content with a `NULL` author. Deleting an event still cascades to its responses. Consent rows cascade from `auth.users`, so the consent audit history is removed with the account, as the privacy policy states.
 
 The migration also handles an important trigger interaction: `events.created_by` is otherwise immutable, so the `set_event_created_by` trigger was amended to permit the specific `SET NULL` case where the old profile no longer exists. Without that exception, the foreign-key action would be rejected by the attribution trigger.
 
@@ -444,7 +452,7 @@ A second inconsistency is that `announcement_banners` is approval-gated but not 
 
 **Challenge.** The browser used to send `events.created_by`. RLS checked only `is_admin`, so an administrator could attribute an event to another member. Similarly, client-side trimming could be bypassed by a direct PostgREST call, allowing blank titles, names, or request messages.
 
-**Decision.** The database owns `created_by`: a default of `auth.uid()`, a `BEFORE INSERT OR UPDATE` trigger that enforces attribution and immutability, and an insert policy that repeats the `created_by = auth.uid()` check. The service role remains an explicit repair path. Blank text is rejected by check constraints on `profiles.full_name`, `events.title`, and `generic_requests.message`. The request update grant is column-scoped to `status`; profile triggers protect `is_admin`, `id`, and `approval_status`.
+**Decision.** The database owns `created_by`: a default of `auth.uid()`, a `BEFORE INSERT OR UPDATE` trigger that enforces attribution and immutability, and an insert policy that repeats the `created_by = auth.uid()` check. The service role remains an explicit repair path. Blank text is rejected by check constraints on `profiles.full_name`, `events.title`, `event_templates.title`, and `generic_requests.message`. The request update grant is column-scoped to `status`; profile triggers protect `is_admin`, `id`, and `approval_status`. Event templates additionally constrain `default_time` to be present exactly when the template is timed.
 
 **Consequences.** The rules survive direct API calls and accidental UI bugs. The cost is trigger complexity and migration care: the profile-deletion `SET NULL` action would have been rejected by the attribution trigger, so the trigger needed an explicit exception for a missing old profile. Constraints were also added `NOT VALID` first so a legacy database with dirty rows would not fail the migration outright.
 
