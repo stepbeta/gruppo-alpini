@@ -208,6 +208,14 @@ export function ArrowRightIcon({ className }: IconProps) {
   );
 }
 
+export function ArrowUpIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M12 20V4M6 10l6-6 6 6" />
+    </IconBase>
+  );
+}
+
 export function CheckCircleIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>

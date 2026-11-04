@@ -176,6 +176,11 @@ shortcut and a **Manuale** link in the header.
   roles, closed registration and approvals, member maintenance, events and
   RSVPs, event templates, the secretariat board, announcements, and privacy
   operations.
+- The guide opens one section at a time. The compact section selector
+  highlights the active section, and Previous/Next controls plus **Torna
+  all’indice** make it easy to move around. The smaller **Mostra tutto** option
+  opens the complete manual; in that view a floating **Torna su** chip follows
+  the scroll so the administrator can return to the top quickly.
 - The route uses `AuthGuard` and then `AuthProvider.isAdmin`. Approved members
   who are not administrators see an **Accesso riservato** panel. The manual is
   linked from the header and from an administrator-only card on the home page;

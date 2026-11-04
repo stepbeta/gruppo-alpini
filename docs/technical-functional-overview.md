@@ -419,6 +419,8 @@ The default Supabase email service is limited to roughly two messages per hour a
 
 `/admin/manuale` is a static, Italian-language reference guide for administrators. It is rendered inside `AuthGuard`, so the usual session, consent, and approval gates run first, and it then checks `AuthProvider.isAdmin`; authenticated members who are not administrators see an **Accesso riservato** panel instead of the guide. `isAdmin` is derived from the profile already loaded for the approval check, so the page does not issue a second profile query.
 
+The guide opens one section at a time. A compact selector highlights the active section, and Previous/Next controls plus **Torna all’indice** provide navigation without returning to the page top. A smaller **Mostra tutto** option switches to the full manual; in that mode every section is visible and a floating **Torna su** chip appears after scrolling so the administrator can return to the top quickly.
+
 The guide covers the five access levels, closed registration and approvals, member maintenance and cross-member export/deletion, events and RSVP/attendance semantics, event templates, the secretariat board, announcement states and scheduling, versioned consent, GDPR exports, and `ON DELETE SET NULL` anonymization. It is linked from the header and from an administrator-only card on the home page.
 
 The file carries a maintenance rule in its header comment and repeats the rule visibly at the bottom of the page: whenever a feature is added, changed, or removed, or a migration/policy changes, the manual must be updated in the same pull request and `MANUAL_LAST_UPDATED` must be refreshed. The manual requires no migration or new database object.
