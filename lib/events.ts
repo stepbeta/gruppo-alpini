@@ -241,6 +241,33 @@ export function maskItalianTimeInput(value: string): string {
   return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }
 
+function eventTimestamp(event: EventRecord): number {
+  const timestamp = new Date(event.event_date).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+/**
+ * Mirrors the upcoming/past rule used by the server-side PostgREST filter.
+ *
+ * All-day events stay upcoming for their whole local calendar date; timed
+ * events switch to past at their exact start time. Malformed dates are treated
+ * as past so they cannot sit at the top of the calendar indefinitely.
+ */
+export function isEventPast(event: EventRecord, now: number): boolean {
+  if (event.is_all_day) {
+    const today = new Date(now);
+    const startOfToday = Date.UTC(
+      today.getFullYear(),
+      today.getMonth(),
+      today.getDate(),
+    );
+
+    return eventTimestamp(event) < startOfToday;
+  }
+
+  return eventTimestamp(event) < now;
+}
+
 /**
  * Mirrors the client-side upcoming/past rules in PostgREST syntax.
  *

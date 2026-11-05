@@ -1,5 +1,21 @@
 "use client";
 
+/**
+ * ============================================================================
+ * EVENTI — REGOLA DI MANUTENZIONE
+ * ============================================================================
+ *
+ * Whenever event listing views, filters, or page structures are modified in
+ * the application, this file and any related UI components must be updated
+ * simultaneously in the same pull request to keep the UI behavior and code
+ * aligned.
+ *
+ * In pratica: se cambi le viste dell’elenco eventi, i filtri o la struttura
+ * della pagina, aggiorna questo file, i componenti UI collegati e la
+ * documentazione nello stesso pull request.
+ * ============================================================================
+ */
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -17,6 +33,7 @@ import {
   fetchEvents,
   formatEventError,
   getEventIdFromSearch,
+  isEventPast,
   type EventRecord,
   type EventResponseRecord,
 } from "@/lib/events";
@@ -36,29 +53,16 @@ import { EventTemplatesDialog } from "./event-templates-dialog";
 
 const EVENT_PAGE_SIZE = 5;
 
-function eventTimestamp(event: EventRecord): number {
-  const timestamp = new Date(event.event_date).getTime();
-  return Number.isNaN(timestamp) ? 0 : timestamp;
-}
+type EventScopeFilter = "all" | "upcoming" | "past";
 
-/**
- * All-day events stay upcoming for their whole date; timed events switch to
- * past at their exact start time.
- */
-function isEventPast(event: EventRecord, now: number): boolean {
-  if (event.is_all_day) {
-    const today = new Date(now);
-    const startOfToday = Date.UTC(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate(),
-    );
-
-    return eventTimestamp(event) < startOfToday;
-  }
-
-  return eventTimestamp(event) < now;
-}
+const EVENT_SCOPE_FILTERS: ReadonlyArray<{
+  value: EventScopeFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Tutti" },
+  { value: "upcoming", label: "Prossimi" },
+  { value: "past", label: "Passati" },
+];
 
 export function EventsPage() {
   const { user } = useAuth();
@@ -74,6 +78,7 @@ export function EventsPage() {
   const [pastPage, setPastPage] = useState(1);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query.trim(), 350);
+  const [scope, setScope] = useState<EventScopeFilter>("upcoming");
 
   const [responses, setResponses] = useState<EventResponseRecord[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -230,6 +235,9 @@ export function EventsPage() {
 
       setSharedEventId(linkedEventId);
       setSharedEvent(event);
+      const eventNow = Date.now();
+      setNow(eventNow);
+      setScope(isEventPast(event, eventNow) ? "past" : "upcoming");
     });
 
     return () => {
@@ -318,6 +326,16 @@ export function EventsPage() {
       (event) => event.id === sharedEventId,
     );
 
+  const sharedEventIsPast = sharedEvent
+    ? isEventPast(sharedEvent, now)
+    : false;
+
+  const isSharedEventInScope =
+    sharedEvent !== null &&
+    (scope === "all" ||
+      (scope === "upcoming" && !sharedEventIsPast) ||
+      (scope === "past" && sharedEventIsPast));
+
   useEffect(() => {
     if (!sharedEventId || scrolledEventRef.current === sharedEventId) return;
 
@@ -355,6 +373,13 @@ export function EventsPage() {
   const hasSearch = debouncedQuery.length > 0;
   const totalResults = upcomingTotal + pastTotal;
   const hasResults = totalResults > 0;
+  const scopedTotal =
+    scope === "upcoming"
+      ? upcomingTotal
+      : scope === "past"
+        ? pastTotal
+        : totalResults;
+  const showGlobalEmptyState = hasSearch && !hasResults;
   const loadError = profileError ?? eventsError;
 
   const handleCloseCreate = useCallback(() => {
@@ -394,6 +419,7 @@ export function EventsPage() {
     setPastPage(1);
     setReloadKey((current) => current + 1);
     setIsCreateOpen(false);
+    setScope("upcoming");
     setNotice(`Evento creato: ${createdEvent.title}.`);
   }
 
@@ -445,8 +471,8 @@ export function EventsPage() {
     setReloadKey((current) => current + 1);
   }
 
-  function handlePageChange(scope: "upcoming" | "past", nextPage: number) {
-    if (scope === "upcoming") {
+  function handlePageChange(list: "upcoming" | "past", nextPage: number) {
+    if (list === "upcoming") {
       setUpcomingPage(nextPage);
       upcomingSectionRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -466,6 +492,10 @@ export function EventsPage() {
     setQuery(value);
     setUpcomingPage(1);
     setPastPage(1);
+  }
+
+  function handleScopeChange(nextScope: EventScopeFilter) {
+    setScope(nextScope);
   }
 
   if (!userId) return null;
@@ -564,7 +594,7 @@ export function EventsPage() {
           </div>
         ) : null}
 
-        {!isLoading && !loadError && (hasResults || hasSearch) ? (
+        {!isLoading && !loadError ? (
           <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
             <label className="sr-only" htmlFor="event-search">
               Cerca eventi per titolo, luogo o descrizione
@@ -592,6 +622,47 @@ export function EventsPage() {
               ) : null}
             </div>
 
+            <div
+              aria-label="Filtra gli eventi"
+              className="mt-3 flex flex-wrap gap-2"
+              role="group"
+            >
+              {EVENT_SCOPE_FILTERS.map((filter) => {
+                const isActive = scope === filter.value;
+                const count =
+                  filter.value === "all"
+                    ? totalResults
+                    : filter.value === "upcoming"
+                      ? upcomingTotal
+                      : pastTotal;
+
+                return (
+                  <button
+                    aria-pressed={isActive}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
+                      isActive
+                        ? "border-emerald-700 bg-emerald-700 text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                        : "border-zinc-300 bg-white text-zinc-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-200"
+                    }`}
+                    key={filter.value}
+                    onClick={() => handleScopeChange(filter.value)}
+                    type="button"
+                  >
+                    {filter.label}
+                    <span
+                      className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+                        isActive
+                          ? "bg-white/20 text-white"
+                          : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <p
                 aria-live="polite"
@@ -606,8 +677,16 @@ export function EventsPage() {
                     Aggiornamento del calendario…
                   </span>
                 ) : hasSearch ? (
-                  `${totalResults} ${
-                    totalResults === 1 ? "evento trovato" : "eventi trovati"
+                  `${scopedTotal} ${
+                    scopedTotal === 1 ? "risultato" : "risultati"
+                  }`
+                ) : scope === "upcoming" ? (
+                  `${upcomingTotal} ${
+                    upcomingTotal === 1 ? "prossimo evento" : "prossimi eventi"
+                  }`
+                ) : scope === "past" ? (
+                  `${pastTotal} ${
+                    pastTotal === 1 ? "evento passato" : "eventi passati"
                   }`
                 ) : (
                   `${upcomingTotal} ${
@@ -679,7 +758,7 @@ export function EventsPage() {
 
         {!isLoading && !loadError ? (
           <>
-            {hasSearch && !hasResults ? (
+            {showGlobalEmptyState ? (
               <div
                 className="mt-8 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
                 role="status"
@@ -702,7 +781,7 @@ export function EventsPage() {
               </div>
             ) : null}
 
-            {sharedEvent && !isSharedEventVisible ? (
+            {sharedEvent && !isSharedEventVisible && isSharedEventInScope ? (
               <section className="mt-8 scroll-mt-24">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="text-xl font-semibold tracking-tight text-zinc-900 sm:text-2xl dark:text-zinc-50">
@@ -722,7 +801,7 @@ export function EventsPage() {
                     event={sharedEvent}
                     isAdmin={isAdmin}
                     isHighlighted
-                    isPast={isEventPast(sharedEvent, now)}
+                    isPast={sharedEventIsPast}
                     members={isAdmin ? members : []}
                     onDelete={handleOpenDelete}
                     onEdit={handleOpenEdit}
@@ -734,7 +813,9 @@ export function EventsPage() {
               </section>
             ) : null}
 
-            {upcomingTotal > 0 || !hasSearch ? (
+            {!showGlobalEmptyState &&
+            scope !== "past" &&
+            (upcomingTotal > 0 || !hasSearch || scope === "upcoming") ? (
               <section
                 className="mt-8 scroll-mt-24"
                 ref={upcomingSectionRef}
@@ -795,32 +876,62 @@ export function EventsPage() {
                   >
                     <CalendarIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
                     <h3 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-                      Nessun evento in programma
+                      {hasSearch
+                        ? "Nessun prossimo evento trovato"
+                        : "Nessun evento in programma"}
                     </h3>
-                    <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                      {isAdmin
-                        ? "Crea il primo evento per iniziare a raccogliere le adesioni dei soci."
-                        : "Gli eventi creati dagli amministratori compariranno qui."}
-                    </p>
-                    {isAdmin ? (
-                      <button
-                        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
-                        onClick={() => {
-                          setNotice(null);
-                          setIsCreateOpen(true);
-                        }}
-                        type="button"
-                      >
-                        <PlusIcon className="h-5 w-5" />
-                        Crea un evento
-                      </button>
-                    ) : null}
+                    {hasSearch ? (
+                      <>
+                        <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                          Non ci sono prossimi eventi per “{query.trim()}”.
+                          {pastTotal > 0
+                            ? ` ${pastTotal} ${
+                                pastTotal === 1
+                                  ? "evento passato corrisponde"
+                                  : "eventi passati corrispondono"
+                              } invece alla ricerca.`
+                            : ""}
+                        </p>
+                        {pastTotal > 0 ? (
+                          <button
+                            className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+                            onClick={() => handleScopeChange("past")}
+                            type="button"
+                          >
+                            Mostra gli eventi passati
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                          {isAdmin
+                            ? "Crea il primo evento per iniziare a raccogliere le adesioni dei soci."
+                            : "Gli eventi creati dagli amministratori compariranno qui."}
+                        </p>
+                        {isAdmin ? (
+                          <button
+                            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+                            onClick={() => {
+                              setNotice(null);
+                              setIsCreateOpen(true);
+                            }}
+                            type="button"
+                          >
+                            <PlusIcon className="h-5 w-5" />
+                            Crea un evento
+                          </button>
+                        ) : null}
+                      </>
+                    )}
                   </div>
                 )}
               </section>
             ) : null}
 
-            {pastTotal > 0 ? (
+            {!showGlobalEmptyState &&
+            scope !== "upcoming" &&
+            (pastTotal > 0 || scope === "past") ? (
               <section
                 className="mt-10 scroll-mt-24 border-t border-zinc-200 pt-8 dark:border-zinc-800"
                 ref={pastSectionRef}
@@ -835,40 +946,85 @@ export function EventsPage() {
                   </p>
                 </div>
 
-                <ul className="mt-4 space-y-5">
-                  {pastEvents.map((event) => (
-                    <EventCard
-                      allResponses={responsesByEvent.get(event.id) ?? []}
-                      approvedMemberCount={
-                        isAdmin ? approvedMemberCount : undefined
-                      }
-                      event={event}
-                      isAdmin={isAdmin}
-                      isHighlighted={event.id === sharedEventId}
-                      isPast
-                      key={event.id}
-                      members={isAdmin ? members : []}
-                      onDelete={handleOpenDelete}
-                      onEdit={handleOpenEdit}
-                      onResponseSaved={handleResponseSaved}
-                      response={myResponses.get(event.id)}
-                      userId={userId}
-                    />
-                  ))}
-                </ul>
+                {pastEvents.length > 0 ? (
+                  <>
+                    <ul className="mt-4 space-y-5">
+                      {pastEvents.map((event) => (
+                        <EventCard
+                          allResponses={
+                            responsesByEvent.get(event.id) ?? []
+                          }
+                          approvedMemberCount={
+                            isAdmin ? approvedMemberCount : undefined
+                          }
+                          event={event}
+                          isAdmin={isAdmin}
+                          isHighlighted={event.id === sharedEventId}
+                          isPast
+                          key={event.id}
+                          members={isAdmin ? members : []}
+                          onDelete={handleOpenDelete}
+                          onEdit={handleOpenEdit}
+                          onResponseSaved={handleResponseSaved}
+                          response={myResponses.get(event.id)}
+                          userId={userId}
+                        />
+                      ))}
+                    </ul>
 
-                <Pagination
-                  className="mt-4"
-                  disabled={isRefreshing}
-                  itemLabel="eventi"
-                  onPageChange={(nextPage) =>
-                    handlePageChange("past", nextPage)
-                  }
-                  page={pastPage}
-                  pageCount={pastPageCount}
-                  pageSize={EVENT_PAGE_SIZE}
-                  total={pastTotal}
-                />
+                    <Pagination
+                      className="mt-4"
+                      disabled={isRefreshing}
+                      itemLabel="eventi"
+                      onPageChange={(nextPage) =>
+                        handlePageChange("past", nextPage)
+                      }
+                      page={pastPage}
+                      pageCount={pastPageCount}
+                      pageSize={EVENT_PAGE_SIZE}
+                      total={pastTotal}
+                    />
+                  </>
+                ) : (
+                  <div
+                    className="mt-4 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                    role="status"
+                  >
+                    <CalendarIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
+                    <h3 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
+                      {hasSearch
+                        ? "Nessun evento passato trovato"
+                        : "Nessun evento passato"}
+                    </h3>
+                    {hasSearch ? (
+                      <>
+                        <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                          Non ci sono eventi passati per “{query.trim()}”.
+                          {upcomingTotal > 0
+                            ? ` ${upcomingTotal} ${
+                                upcomingTotal === 1
+                                  ? "evento prossimo corrisponde"
+                                  : "eventi prossimi corrispondono"
+                              } invece alla ricerca.`
+                            : ""}
+                        </p>
+                        {upcomingTotal > 0 ? (
+                          <button
+                            className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+                            onClick={() => handleScopeChange("upcoming")}
+                            type="button"
+                          >
+                            Mostra gli eventi prossimi
+                          </button>
+                        ) : null}
+                      </>
+                    ) : (
+                      <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+                        Gli eventi conclusi compariranno qui dopo la loro data.
+                      </p>
+                    )}
+                  </div>
+                )}
               </section>
             ) : null}
           </>

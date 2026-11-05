@@ -68,6 +68,8 @@ The directory also exposes a defence-in-depth detail: the `profiles` select poli
 
 The event page has two independent lists: upcoming events sorted ascending, and past events sorted descending. Each is searched and paginated separately at five events per page. The search covers title, location, and description.
 
+Above the lists, filter chips switch the visible scope between **Tutti**, **Prossimi**, and **Passati**. **Prossimi** is selected initially so the page opens on the actionable calendar; **Tutti** reveals both lists. Search, pagination, and loaded pages remain independent for each list while hidden, so switching chips does not refetch or reset the other view. Empty scopes and empty search results show a contextual message with a shortcut to the other list. Choosing a shared deep link selects the matching scope automatically.
+
 Event dates use the strict Italian input format `gg/mm/aaaa` with an optional 24-hour `HH:mm`. An empty time creates an all-day event stored at UTC midnight; the UI then displays only the date. Timed events are stored as local times converted to ISO timestamps and displayed in the browser's local time. Invalid dates such as `31/02/2026`, non-leap `29/02`, and invalid times such as `24:00` are rejected.
 
 Approved members can set `Presente`, `In forse`, or `Assente` on upcoming events; past responses are read-only. Administrators can create, edit, and delete events. Each card shows attendance totals and the names of members in each status, plus an optional count of approved members who have not responded. Deleted members appear as `Socio eliminato` and remain in historical totals because their response row survives with `user_id = NULL`.

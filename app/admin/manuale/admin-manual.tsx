@@ -668,8 +668,12 @@ export function AdminManual() {
             title="Eventi e adesioni"
           >
             <p>
-              La pagina <strong>Eventi</strong> mostra prima gli appuntamenti
-              futuri e poi quelli passati. I soci possono rispondere solo agli
+              La pagina <strong>Eventi</strong> mostra gli appuntamenti futuri e
+              quelli passati. Usa i filtri <strong>Tutti</strong>,{" "}
+              <strong>Prossimi</strong> e <strong>Passati</strong> per
+              concentrarti su una sola vista; all’apertura è attivo{" "}
+              <strong>Prossimi</strong>. Ricerca, paginazione e stato dei due
+              elenchi restano indipendenti. I soci possono rispondere solo agli
               eventi futuri.
             </p>
 

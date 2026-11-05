@@ -4,14 +4,56 @@ import {
   formatEventDateInput,
   getEventIdFromSearch,
   getEventSharePath,
+  isEventPast,
   maskItalianDateInput,
   maskItalianTimeInput,
   parseEventDateTime,
+  type EventRecord,
 } from "./events";
 
 // events.ts imports the browser Supabase client. The functions under test are
 // pure, so replace it to keep the unit tests hermetic and free of env vars.
 vi.mock("./supabase", () => ({ supabase: null }));
+
+function eventAt(eventDate: string, isAllDay = false): EventRecord {
+  return {
+    id: "event-1",
+    title: "Evento di prova",
+    description: null,
+    location: null,
+    event_date: eventDate,
+    is_all_day: isAllDay,
+    created_by: null,
+    created_at: "2026-01-01T00:00:00.000Z",
+  };
+}
+
+describe("isEventPast", () => {
+  it("keeps a timed event upcoming until its exact start time", () => {
+    const eventDate = new Date(2026, 0, 5, 18, 0);
+    const event = eventAt(eventDate.toISOString());
+
+    expect(isEventPast(event, eventDate.getTime() - 1)).toBe(false);
+    expect(isEventPast(event, eventDate.getTime())).toBe(false);
+    expect(isEventPast(event, eventDate.getTime() + 1)).toBe(true);
+  });
+
+  it("keeps an all-day event upcoming for its whole local date", () => {
+    const event = eventAt("2026-03-14T00:00:00.000Z", true);
+    const sameDayNoon = new Date(2026, 2, 14, 12, 0).getTime();
+    const nextDayStart = new Date(2026, 2, 15, 0, 0).getTime();
+
+    expect(isEventPast(event, sameDayNoon)).toBe(false);
+    expect(isEventPast(event, nextDayStart)).toBe(true);
+  });
+
+  it("treats a malformed event date as past", () => {
+    const now = new Date(2026, 0, 5, 12, 0).getTime();
+
+    expect(isEventPast(eventAt("not-a-date"), now)).toBe(true);
+    expect(isEventPast(eventAt("not-a-date", true), now)).toBe(true);
+  });
+});
 
 describe("parseEventDateTime", () => {
   it("parses a date without a time as an all-day UTC event", () => {
