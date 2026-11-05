@@ -1,8 +1,25 @@
 "use client";
 
+/**
+ * ============================================================================
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
+ *
+ * In pratica: se cambi le azioni disponibili per i soci o le rotte collegate,
+ * aggiorna il promemoria di benvenuto e le schede di questa home nello stesso
+ * pull request.
+ * ============================================================================
+ */
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AuthGuard } from "@/components/auth-guard";
+import { MemberWelcomeHint } from "@/components/member-welcome-hint";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
@@ -105,6 +122,10 @@ function HomeContent() {
             />
           </svg>
         </section>
+
+        {profile?.approval_status === "approved" ? (
+          <MemberWelcomeHint userId={user.id} />
+        ) : null}
 
         <section className="mt-8 grid gap-5 md:grid-cols-2">
           <Link

@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * ============================================================================
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
+ *
+ * In pratica: se cambi il modulo di invio, i filtri della bacheca o gli stati
+ * delle richieste, aggiorna i testi di aiuto e gli stati vuoti nello stesso PR.
+ * ============================================================================
+ */
+
 import {
   useEffect,
   useId,
@@ -11,6 +26,11 @@ import {
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Pagination } from "@/components/pagination";
+import {
+  EmptyStateCard,
+  emptyStatePrimaryActionClass,
+  emptyStateSecondaryActionClass,
+} from "@/components/empty-state";
 import { useAuth } from "@/components/auth-provider";
 import { getInitials } from "@/lib/display";
 import {
@@ -34,6 +54,7 @@ import {
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import {
   AlertCircleIcon,
+  ArrowRightIcon,
   CheckCircleIcon,
   ClockIcon,
   MailIcon,
@@ -89,6 +110,8 @@ export function RequestsPage() {
   const { user } = useAuth();
   const userId = user?.id;
   const messageFieldId = useId();
+  const messageHintId = useId();
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
 
   const [myRequests, setMyRequests] = useState<GenericRequestRecord[]>([]);
   const [myTotal, setMyTotal] = useState(0);
@@ -415,6 +438,14 @@ export function RequestsPage() {
     setBoardPage(1);
   }
 
+  function focusRequestForm() {
+    const input = messageInputRef.current;
+    if (!input) return;
+
+    input.scrollIntoView({ behavior: "smooth", block: "center" });
+    input.focus({ preventScroll: true });
+  }
+
   if (!userId) return null;
 
   return (
@@ -527,6 +558,7 @@ export function RequestsPage() {
                       Messaggio
                     </label>
                     <textarea
+                      aria-describedby={messageHintId}
                       className={`${inputClass} min-h-36 resize-y`}
                       disabled={isSubmitting}
                       id={messageFieldId}
@@ -537,13 +569,23 @@ export function RequestsPage() {
                         setFormError(null);
                       }}
                       placeholder="Es. Vorrei informazioni sulle prossime attività del gruppo…"
+                      ref={messageInputRef}
                       required
                       rows={6}
                       value={message}
                     />
-                    <p className="mt-1.5 text-right text-xs text-zinc-500 dark:text-zinc-400">
-                      {message.length}/{MAX_MESSAGE_LENGTH}
-                    </p>
+                    <div className="mt-1.5 flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                      <p
+                        className="text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                        id={messageHintId}
+                      >
+                        Indica date, luoghi o riferimenti utili. Evita dati
+                        sensibili che non servono alla richiesta.
+                      </p>
+                      <p className="shrink-0 text-right text-xs text-zinc-500 dark:text-zinc-400">
+                        {message.length}/{MAX_MESSAGE_LENGTH}
+                      </p>
+                    </div>
                   </div>
 
                   {formError ? (
@@ -632,19 +674,26 @@ export function RequestsPage() {
                     />
                   </>
                 ) : (
-                  <div
-                    className="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 p-8 text-center dark:border-zinc-700 dark:bg-zinc-950/40"
-                    role="status"
-                  >
-                    <MailIcon className="mx-auto h-9 w-9 text-zinc-400 dark:text-zinc-500" />
-                    <h3 className="mt-3 text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                      Nessuna richiesta inviata
-                    </h3>
-                    <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                      Quando invierai un messaggio alla segreteria, comparirà qui
-                      con il suo stato.
-                    </p>
-                  </div>
+                  <EmptyStateCard
+                    actions={
+                      <button
+                        className={emptyStatePrimaryActionClass}
+                        onClick={focusRequestForm}
+                        type="button"
+                      >
+                        Scrivi la prima richiesta
+                        <ArrowRightIcon className="h-4 w-4" />
+                      </button>
+                    }
+                    className="mt-4"
+                    compact
+                    description="Puoi chiedere informazioni, segnalare un’esigenza o inviare una comunicazione. La segreteria la riceverà e potrà aggiornarne lo stato."
+                    hint="Suggerimento: indica date, luoghi o riferimenti utili. La risposta e lo stato resteranno visibili in questa sezione."
+                    icon={<MailIcon className="h-5 w-5" />}
+                    title="Non hai ancora inviato alcuna richiesta alla segreteria."
+                    tone="emerald"
+                    variant="inline"
+                  />
                 )}
               </section>
             </div>
@@ -913,38 +962,49 @@ export function RequestsPage() {
                     />
                   </>
                 ) : boardError ? null : (
-                  <div
-                    className="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50/60 p-8 text-center dark:border-zinc-700 dark:bg-zinc-950/40"
-                    role="status"
-                  >
-                    <CheckCircleIcon className="mx-auto h-9 w-9 text-zinc-400 dark:text-zinc-500" />
-                    <h3 className="mt-3 text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                      {hasBoardSearch
+                  <EmptyStateCard
+                    actions={
+                      isBoardFiltered ? (
+                        <button
+                          className={emptyStateSecondaryActionClass}
+                          onClick={() => {
+                            handleBoardSearchChange("");
+                            handleStatusFilterChange("all");
+                          }}
+                          type="button"
+                        >
+                          Azzera filtri
+                        </button>
+                      ) : undefined
+                    }
+                    className="mt-5"
+                    compact
+                    description={
+                      hasBoardSearch
+                        ? "Non ci sono messaggi che contengono questa parola. La ricerca considera solo il testo della richiesta."
+                        : isBoardFiltered
+                          ? "Non ci sono richieste con lo stato selezionato. Puoi cambiare filtro o tornare alla bacheca completa."
+                          : "Le richieste inviate dai soci compariranno qui in ordine di arrivo, con il nome dell’autore e lo stato."
+                    }
+                    headingLevel="h3"
+                    hint={
+                      hasBoardSearch
+                        ? "Prova con una parola chiave più breve o diversa."
+                        : isBoardFiltered
+                          ? "I conteggi in alto si aggiornano insieme al filtro attivo."
+                          : "Quando un socio scrive alla segreteria, la richiesta arriva direttamente in questa bacheca."
+                    }
+                    icon={<CheckCircleIcon className="h-5 w-5" />}
+                    title={
+                      hasBoardSearch
                         ? "Nessuna richiesta trovata"
                         : isBoardFiltered
                           ? "Nessuna richiesta in questo filtro"
-                          : "Nessuna richiesta ricevuta"}
-                    </h3>
-                    <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                      {hasBoardSearch
-                        ? "Prova con un’altra parola del testo della richiesta."
-                        : isBoardFiltered
-                          ? "Prova a selezionare un altro stato."
-                          : "Le richieste inviate dai soci compariranno qui."}
-                    </p>
-                    {isBoardFiltered ? (
-                      <button
-                        className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-                        onClick={() => {
-                          handleBoardSearchChange("");
-                          handleStatusFilterChange("all");
-                        }}
-                        type="button"
-                      >
-                        Azzera filtri
-                      </button>
-                    ) : null}
-                  </div>
+                          : "Nessuna richiesta ricevuta"
+                    }
+                    tone={isBoardFiltered ? "neutral" : "emerald"}
+                    variant="inline"
+                  />
                 )}
               </section>
             ) : null}

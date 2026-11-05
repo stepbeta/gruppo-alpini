@@ -1,3 +1,4 @@
+import { formatFriendlyError } from "./error-messages";
 import {
   buildIlikeOr,
   getPageCount,
@@ -92,29 +93,19 @@ function pad2(value: number): string {
 
 /** Turns the most common Supabase/PostgREST errors into Italian messages. */
 export function formatEventError(message: string): string {
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes("permission denied") ||
-    normalized.includes("42501") ||
-    normalized.includes("row-level security")
-  ) {
-    return "Non hai i permessi per questa operazione. Verifica che le migrazioni Supabase siano state applicate al database.";
-  }
-  if (
-    normalized.includes("relation") &&
-    normalized.includes("does not exist")
-  ) {
-    return "Le tabelle degli eventi non sono ancora disponibili. Verifica le migrazioni Supabase.";
-  }
-  if (normalized.includes("duplicate key")) {
-    return "Esiste già una risposta per questo evento.";
-  }
-  if (normalized.includes("invalid input syntax")) {
-    return "Uno dei valori inseriti non è valido. Controlla i campi e riprova.";
-  }
-
-  return message;
+  return formatFriendlyError(message, {
+    fallback:
+      "Non è stato possibile completare l’operazione sugli eventi. Riprova tra poco; se il problema continua, contatta un amministratore.",
+    permission:
+      "Non hai i permessi per questa operazione. Verifica che le migrazioni Supabase siano state applicate al database.",
+    missingTable:
+      "Le tabelle degli eventi non sono ancora disponibili. Verifica le migrazioni Supabase.",
+    duplicate: "Esiste già una risposta per questo evento.",
+    checkConstraint:
+      "Controlla i dati dell’evento: uno o più valori non sono validi.",
+    invalidInput:
+      "Uno dei valori inseriti non è valido. Controlla la data, l’ora e gli altri campi, poi riprova.",
+  });
 }
 
 /**

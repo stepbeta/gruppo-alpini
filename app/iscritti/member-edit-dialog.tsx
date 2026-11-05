@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * ============================================================================
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
+ *
+ * In pratica: se cambi i campi della scheda socio, i formati di data o le
+ * regole sull’anno di leva, aggiorna esempi e messaggi di errore.
+ * ============================================================================
+ */
+
 import {
   useEffect,
   useId,
@@ -206,7 +221,9 @@ export function MemberEditDialog({
         parsedYear < 1900 ||
         parsedYear > maxYear
       ) {
-        setError(`Inserisci un anno di leva valido (1900–${maxYear}).`);
+        setError(
+          `Inserisci un anno di leva a quattro cifre compreso tra 1900 e ${maxYear}. Esempio: 1985.`,
+        );
         return;
       }
 
@@ -464,6 +481,7 @@ export function MemberEditDialog({
                 </span>
               </label>
               <input
+                aria-describedby={`${fieldId}-birth-date-hint`}
                 autoComplete="bday"
                 className={inputClass}
                 disabled={isSaving}
@@ -475,6 +493,12 @@ export function MemberEditDialog({
                 type="date"
                 value={values.birth_date}
               />
+              <p
+                className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                id={`${fieldId}-birth-date-hint`}
+              >
+                Formato gg/mm/aaaa. Puoi lasciare vuoto se non vuoi indicarla.
+              </p>
             </div>
 
             <div>
@@ -488,6 +512,7 @@ export function MemberEditDialog({
                 </span>
               </label>
               <input
+                aria-describedby={`${fieldId}-enlistment-year-hint`}
                 className={inputClass}
                 disabled={isSaving}
                 id={`${fieldId}-enlistment-year`}
@@ -502,6 +527,13 @@ export function MemberEditDialog({
                 type="number"
                 value={values.enlistment_year}
               />
+              <p
+                className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                id={`${fieldId}-enlistment-year-hint`}
+              >
+                Anno a quattro cifre, tra 1900 e {new Date().getFullYear()}.
+                Esempio: 1985.
+              </p>
             </div>
           </div>
 

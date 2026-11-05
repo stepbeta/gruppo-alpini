@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * ============================================================================
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
+ *
+ * In pratica: se cambi i campi, i formati di data/ora o le regole di validazione
+ * degli eventi, aggiorna anche esempi, suggerimenti e messaggi di errore.
+ * ============================================================================
+ */
+
 import {
   useCallback,
   useEffect,
@@ -296,7 +311,7 @@ export function EventDialog({
     const eventDateTime = parseEventDateTime(values.date, values.time);
     if (!eventDateTime) {
       setError(
-        "Inserisci una data valida nel formato gg/mm/aaaa. Se indichi l’ora, usa il formato HH:mm (24 ore).",
+        "Inserisci una data valida nel formato gg/mm/aaaa (es. 25/12/2026). Se indichi l’ora, usa il formato HH:mm (24 ore), ad esempio 19:00.",
       );
       return;
     }
@@ -545,11 +560,17 @@ export function EventDialog({
                       maskItalianDateInput(changeEvent.target.value),
                     )
                   }
-                  placeholder="25/12/2026"
+                  placeholder="Es. 25/12/2026"
                   required
                   type="text"
                   value={values.date}
                 />
+                <p
+                  className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                  id={`${fieldId}-date-hint`}
+                >
+                  Formato gg/mm/aaaa, anno a quattro cifre. Esempio: 25/12/2026.
+                </p>
               </div>
 
               <div>
@@ -563,7 +584,7 @@ export function EventDialog({
                   </span>
                 </label>
                 <input
-                  aria-describedby={`${fieldId}-date-hint`}
+                  aria-describedby={`${fieldId}-time-hint`}
                   autoComplete="off"
                   className={inputClass}
                   disabled={isSaving}
@@ -577,21 +598,19 @@ export function EventDialog({
                       maskItalianTimeInput(changeEvent.target.value),
                     )
                   }
-                  placeholder="19:00"
+                  placeholder="Es. 19:00"
                   type="text"
                   value={values.time}
                 />
+                <p
+                  className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                  id={`${fieldId}-time-hint`}
+                >
+                  Formato 24 ore, senza AM/PM. Se la lasci vuota, l’evento
+                  durerà tutta la giornata e mostrerà solo la data.
+                </p>
               </div>
             </div>
-
-            <p
-              className="text-xs leading-5 text-zinc-500 dark:text-zinc-400"
-              id={`${fieldId}-date-hint`}
-            >
-              Usa il formato italiano: data gg/mm/aaaa e, se serve, ora HH:mm
-              senza AM/PM. Senza ora l’evento sarà considerato di tutta la
-              giornata e mostrerà solo la data.
-            </p>
 
             <div>
               <label

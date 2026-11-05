@@ -1,3 +1,4 @@
+import { formatFriendlyError } from "./error-messages";
 import {
   getPageCount,
   getPageRange,
@@ -59,30 +60,20 @@ function pad2(value: number): string {
 
 /** Turns the most common Supabase/PostgREST errors into Italian messages. */
 export function formatRequestError(message: string): string {
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes("permission denied") ||
-    normalized.includes("42501") ||
-    normalized.includes("row-level security")
-  ) {
-    return "Non hai i permessi per questa operazione. Verifica che le migrazioni Supabase siano state applicate al database.";
-  }
-  if (
-    (normalized.includes("relation") &&
-      normalized.includes("does not exist")) ||
-    normalized.includes("schema cache")
-  ) {
-    return "La tabella delle richieste non è ancora disponibile. Verifica le migrazioni Supabase.";
-  }
-  if (normalized.includes("violates check constraint")) {
-    return "Lo stato della richiesta non è valido. Ricarica la pagina e riprova.";
-  }
-  if (normalized.includes("invalid input syntax")) {
-    return "Uno dei valori inseriti non è valido. Controlla i campi e riprova.";
-  }
-
-  return message;
+  return formatFriendlyError(message, {
+    fallback:
+      "Non è stato possibile completare l’operazione sulle richieste. Riprova tra poco; se il problema continua, contatta la segreteria.",
+    permission:
+      "Non hai i permessi per questa operazione. Verifica che le migrazioni Supabase siano state applicate al database.",
+    missingTable:
+      "La tabella delle richieste non è ancora disponibile. Verifica le migrazioni Supabase.",
+    duplicate:
+      "La richiesta risulta già inviata. Ricarica la pagina per controllare lo stato.",
+    checkConstraint:
+      "Lo stato della richiesta non è valido. Ricarica la pagina e riprova.",
+    invalidInput:
+      "Uno dei valori inseriti non è valido. Controlla il messaggio e riprova.",
+  });
 }
 
 /** Formats request timestamps as `dd/mm/yyyy HH:mm` in local time. */

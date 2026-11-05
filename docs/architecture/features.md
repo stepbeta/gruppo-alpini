@@ -119,3 +119,15 @@ The guide opens one section at a time. A compact selector highlights the active 
 The guide covers the five access levels, closed registration and approvals, member maintenance and cross-member export/deletion, events and RSVP/attendance semantics, event templates, the secretariat board, announcement states and scheduling, versioned consent, GDPR exports, and `ON DELETE SET NULL` anonymization. It is linked from the header and from an administrator-only card on the home page.
 
 The file carries a maintenance rule in its header comment and repeats the rule visibly at the bottom of the page: whenever a feature is added, changed, or removed, or a migration/policy changes, the manual must be updated in the same pull request and `MANUAL_LAST_UPDATED` must be refreshed. The manual requires no migration or new database object.
+
+### 3.12 Contextual guidance, empty states, and friendly errors
+
+Member-facing screens use shared contextual UI instead of leaving blank areas or raw technical messages:
+
+- `components/empty-state.tsx` provides the card used by `/iscritti`, `/eventi`, and `/richieste`. It pairs an icon and a plain-language explanation with optional hints and next-step actions, such as opening the request form, clearing filters, switching event scope, creating an event as an administrator, or completing the profile.
+- Search fields on the directory and calendar explain what is indexed and that matching ignores letter case; empty search results repeat the query and suggest a shorter or different keyword.
+- `/richieste` shows a dedicated empty state when the member has never written to the secretariat, with a button that scrolls to and focuses the submission form. The form includes guidance about useful references and a live character count.
+- Approved members see a dismissible onboarding card on `/` with links to events/RSVP, the member directory, secretariat requests, and profile editing. Dismissal is stored per account in `localStorage` under `gruppo-alpini:welcome-hint-dismissed:v1:<user-id>`, so it does not affect another member using the same browser.
+- Event date/time fields and profile enlistment-year fields show Italian examples (`gg/mm/aaaa`, `HH:mm`, `Es. 1985`) and describe optional fields next to the input.
+- `lib/error-messages.ts` centralizes the translation of network, expired-session, permission, missing-migration, constraint, duplicate and invalid-input failures. Feature-specific formatters in `lib/events.ts`, `lib/requests.ts`, and `lib/profile.ts` supply their own context and fallback text, and the directory uses the shared helper directly. Raw PostgREST wording is not shown to members.
+- The modified UI and component files carry the maintenance rule in their header comments: when features, workflows, validation rules, or routes change, the related empty states, hints, and error messages must be reviewed in the same pull request.

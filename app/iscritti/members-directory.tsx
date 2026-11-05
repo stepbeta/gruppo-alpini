@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * ============================================================================
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
+ *
+ * In pratica: se cambi la ricerca, i filtri di approvazione o i dati mostrati
+ * nella directory, aggiorna i suggerimenti e gli stati vuoti nello stesso PR.
+ * ============================================================================
+ */
+
 import {
   useCallback,
   useEffect,
@@ -11,9 +26,15 @@ import { useRouter } from "next/navigation";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Pagination } from "@/components/pagination";
+import {
+  EmptyStateCard,
+  emptyStatePrimaryActionClass,
+  emptyStateSecondaryActionClass,
+} from "@/components/empty-state";
 import { useAuth } from "@/components/auth-provider";
 import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { getInitials } from "@/lib/display";
+import { formatFriendlyError } from "@/lib/error-messages";
 import {
   fetchMemberCount,
   fetchMembers,
@@ -23,6 +44,7 @@ import {
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import {
   AlertCircleIcon,
+  ArrowRightIcon,
   CheckCircleIcon,
   ClockIcon,
   MegaphoneIcon,
@@ -54,19 +76,14 @@ function formatBirthDate(value: string | null): string {
 }
 
 function formatDirectoryError(message: string): string {
-  const normalized = message.toLowerCase();
-
-  if (
-    normalized.includes("permission denied") ||
-    normalized.includes("42501")
-  ) {
-    return "Il database non consente la lettura della lista. Verifica che le migrazioni Supabase siano state applicate.";
-  }
-  if (normalized.includes("does not exist")) {
-    return "La tabella dei profili non è ancora disponibile. Verifica le migrazioni Supabase.";
-  }
-
-  return message;
+  return formatFriendlyError(message, {
+    fallback:
+      "Non è stato possibile caricare la lista iscritti. Riprova tra poco; se il problema continua, contatta un amministratore.",
+    permission:
+      "Il database non consente la lettura della lista. Verifica che le migrazioni Supabase siano state applicate.",
+    missingTable:
+      "La tabella dei profili non è ancora disponibile. Verifica le migrazioni Supabase.",
+  });
 }
 
 const MEMBER_PAGE_SIZE = 8;
@@ -349,6 +366,7 @@ export function MembersDirectory() {
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
               <input
+                aria-describedby="member-search-hint"
                 autoComplete="off"
                 className="w-full rounded-xl border border-zinc-300 bg-white py-3 pl-11 pr-11 text-base text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500 [&::-webkit-search-cancel-button]:appearance-none"
                 id="member-search"
@@ -374,6 +392,14 @@ export function MembersDirectory() {
                 </button>
               ) : null}
             </div>
+
+            <p
+              className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+              id="member-search-hint"
+            >
+              Cerca per nome, cognome o luogo di servizio. La ricerca non
+              distingue maiuscole e minuscole e accetta anche parole parziali.
+            </p>
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <p
@@ -487,50 +513,58 @@ export function MembersDirectory() {
         ) : null}
 
         {!isLoading && !loadError && !hasDirectory && !isFiltering ? (
-          <div
-            className="mt-6 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-            role="status"
-          >
-            <UsersIcon className="mx-auto h-9 w-9 text-zinc-400 dark:text-zinc-500" />
-            <h2 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              Nessun iscritto registrato
-            </h2>
-            <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-              Le schede dei soci compariranno qui man mano che vengono create.
-            </p>
-          </div>
+          <EmptyStateCard
+            actions={
+              <Link className={emptyStatePrimaryActionClass} href="/profile">
+                Completa il tuo profilo
+                <ArrowRightIcon className="h-4 w-4" />
+              </Link>
+            }
+            className="mt-6"
+            description="La lista si popolerà man mano che i soci completano la registrazione e ricevono l’approvazione. Se la tua scheda non è ancora compilata, puoi iniziare da lì."
+            hint="La directory mostra solo gli account approvati. Gli amministratori vedono anche le richieste in attesa e gli account rifiutati."
+            icon={<UsersIcon className="h-6 w-6" />}
+            title="Nessun iscritto registrato"
+            tone="emerald"
+          />
         ) : null}
 
         {!isLoading && !loadError && isFiltering && !hasResults ? (
-          <div
-            className="mt-6 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-            role="status"
-          >
-            <SearchIcon className="mx-auto h-9 w-9 text-zinc-400 dark:text-zinc-500" />
-            <h2 className="mt-3 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              {showPendingOnly && !hasSearch
+          <EmptyStateCard
+            actions={
+              <button
+                className={emptyStateSecondaryActionClass}
+                onClick={() => {
+                  setQuery("");
+                  setShowPendingOnly(false);
+                  setPage(1);
+                }}
+                type="button"
+              >
+                {showPendingOnly && !hasSearch
+                  ? "Mostra tutti gli iscritti"
+                  : "Azzera ricerca"}
+              </button>
+            }
+            className="mt-6"
+            description={
+              showPendingOnly && !hasSearch
+                ? "Tutte le richieste di registrazione sono state gestite. I nuovi account compariranno qui finché non vengono approvati o rifiutati."
+                : `Non ci sono risultati per “${query.trim()}”. Controlla l’ortografia o prova con un cognome, una parte del nome o il luogo di servizio.`
+            }
+            hint={
+              showPendingOnly && !hasSearch
+                ? "Gli iscritti già approvati restano visibili nella lista completa."
+                : "Suggerimento: la ricerca non distingue maiuscole e minuscole. Prova ad esempio con “Belluno” o con le prime lettere del cognome."
+            }
+            icon={<SearchIcon className="h-6 w-6" />}
+            title={
+              showPendingOnly && !hasSearch
                 ? "Nessun account in attesa"
-                : "Nessun iscritto trovato"}
-            </h2>
-            <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-              {showPendingOnly && !hasSearch
-                ? "Tutte le richieste di registrazione sono state gestite."
-                : `Non ci sono risultati per “${query.trim()}”. Prova con un altro nome o un altro luogo di servizio.`}
-            </p>
-            <button
-              className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-              onClick={() => {
-                setQuery("");
-                setShowPendingOnly(false);
-                setPage(1);
-              }}
-              type="button"
-            >
-              {showPendingOnly && !hasSearch
-                ? "Mostra tutti gli iscritti"
-                : "Azzera ricerca"}
-            </button>
-          </div>
+                : "Nessun iscritto trovato"
+            }
+            tone={showPendingOnly && !hasSearch ? "emerald" : "neutral"}
+          />
         ) : null}
 
         {!isLoading && !loadError && hasResults ? (

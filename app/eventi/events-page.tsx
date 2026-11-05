@@ -2,24 +2,30 @@
 
 /**
  * ============================================================================
- * EVENTI — REGOLA DI MANUTENZIONE
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
  * ============================================================================
  *
- * Whenever event listing views, filters, or page structures are modified in
- * the application, this file and any related UI components must be updated
- * simultaneously in the same pull request to keep the UI behavior and code
- * aligned.
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
  *
- * In pratica: se cambi le viste dell’elenco eventi, i filtri o la struttura
- * della pagina, aggiorna questo file, i componenti UI collegati e la
- * documentazione nello stesso pull request.
+ * In pratica: se cambi le viste dell’elenco eventi, i filtri, le date o le
+ * risposte di adesione, aggiorna gli stati vuoti, i suggerimenti e i messaggi
+ * di errore nello stesso pull request.
  * ============================================================================
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { Pagination } from "@/components/pagination";
+import {
+  EmptyStateCard,
+  emptyStatePrimaryActionClass,
+  emptyStateSecondaryActionClass,
+} from "@/components/empty-state";
 import { useAuth } from "@/components/auth-provider";
 import {
   fetchMemberCount,
@@ -40,6 +46,7 @@ import {
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import {
   AlertCircleIcon,
+  ArrowRightIcon,
   CalendarIcon,
   CheckCircleIcon,
   PlusIcon,
@@ -602,6 +609,7 @@ export function EventsPage() {
             <div className="relative">
               <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400 dark:text-zinc-500" />
               <input
+                aria-describedby="event-search-hint"
                 autoComplete="off"
                 className="w-full rounded-xl border border-zinc-300 bg-white py-3 pl-11 pr-11 text-base text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500 [&::-webkit-search-cancel-button]:appearance-none"
                 id="event-search"
@@ -621,6 +629,15 @@ export function EventsPage() {
                 </button>
               ) : null}
             </div>
+
+            <p
+              className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+              id="event-search-hint"
+            >
+              La ricerca considera sia i prossimi eventi sia quelli passati.
+              Puoi usare una parte del titolo, il luogo o una parola della
+              descrizione.
+            </p>
 
             <div
               aria-label="Filtra gli eventi"
@@ -759,26 +776,22 @@ export function EventsPage() {
         {!isLoading && !loadError ? (
           <>
             {showGlobalEmptyState ? (
-              <div
-                className="mt-8 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-                role="status"
-              >
-                <SearchIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
-                <h2 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-                  Nessun evento trovato
-                </h2>
-                <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                  Non ci sono risultati per “{query.trim()}”. Prova con un altro
-                  titolo, un altro luogo o una parola della descrizione.
-                </p>
-                <button
-                  className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-                  onClick={() => handleSearchChange("")}
-                  type="button"
-                >
-                  Azzera ricerca
-                </button>
-              </div>
+              <EmptyStateCard
+                actions={
+                  <button
+                    className={emptyStateSecondaryActionClass}
+                    onClick={() => handleSearchChange("")}
+                    type="button"
+                  >
+                    Azzera ricerca
+                  </button>
+                }
+                className="mt-8"
+                description={`Non ci sono risultati per “${query.trim()}”. Prova con un altro titolo, un altro luogo o una parola della descrizione.`}
+                hint="La ricerca non distingue maiuscole e minuscole e include anche gli eventi passati. Prova con una parola più breve."
+                icon={<SearchIcon className="h-6 w-6" />}
+                title="Nessun evento trovato"
+              />
             ) : null}
 
             {sharedEvent && !isSharedEventVisible && isSharedEventInScope ? (
@@ -870,61 +883,91 @@ export function EventsPage() {
                     />
                   </>
                 ) : (
-                  <div
-                    className="mt-4 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-                    role="status"
-                  >
-                    <CalendarIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
-                    <h3 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-                      {hasSearch
+                  <EmptyStateCard
+                    actions={
+                      hasSearch ? (
+                        <>
+                          {pastTotal > 0 ? (
+                            <button
+                              className={emptyStatePrimaryActionClass}
+                              onClick={() => handleScopeChange("past")}
+                              type="button"
+                            >
+                              Mostra gli eventi passati
+                            </button>
+                          ) : null}
+                          <button
+                            className={emptyStateSecondaryActionClass}
+                            onClick={() => handleSearchChange("")}
+                            type="button"
+                          >
+                            Azzera ricerca
+                          </button>
+                        </>
+                      ) : isAdmin ? (
+                        <button
+                          className={emptyStatePrimaryActionClass}
+                          onClick={() => {
+                            setNotice(null);
+                            setIsCreateOpen(true);
+                          }}
+                          type="button"
+                        >
+                          <PlusIcon className="h-4 w-4" />
+                          Crea un evento
+                        </button>
+                      ) : (
+                        <>
+                          {pastTotal > 0 ? (
+                            <button
+                              className={emptyStateSecondaryActionClass}
+                              onClick={() => handleScopeChange("past")}
+                              type="button"
+                            >
+                              Guarda gli eventi passati
+                            </button>
+                          ) : null}
+                          <Link
+                            className={emptyStatePrimaryActionClass}
+                            href="/richieste"
+                          >
+                            Scrivi alla segreteria
+                            <ArrowRightIcon className="h-4 w-4" />
+                          </Link>
+                        </>
+                      )
+                    }
+                    className="mt-4"
+                    description={
+                      hasSearch
+                        ? `Non ci sono prossimi eventi per “${query.trim()}”.${
+                            pastTotal > 0
+                              ? ` ${pastTotal} ${
+                                  pastTotal === 1
+                                    ? "evento passato corrisponde"
+                                    : "eventi passati corrispondono"
+                                } invece alla ricerca.`
+                              : " Prova con una parola diversa o consulta gli eventi passati."
+                          }`
+                        : isAdmin
+                          ? "Non ci sono appuntamenti futuri. Crea il primo evento per iniziare a raccogliere le adesioni dei soci."
+                          : "Al momento non ci sono eventi in programma. Questa sezione si aggiornerà non appena gli amministratori pubblicheranno un nuovo appuntamento."
+                    }
+                    hint={
+                      hasSearch
+                        ? "Il filtro “Prossimi” nasconde gli eventi già conclusi."
+                        : isAdmin
+                          ? "Puoi partire da un modello evento per compilare più rapidamente titolo, luogo, descrizione e ora."
+                          : "Nel frattempo puoi consultare la lista iscritti o inviare una richiesta alla segreteria."
+                    }
+                    icon={<CalendarIcon className="h-6 w-6" />}
+                    title={
+                      hasSearch
                         ? "Nessun prossimo evento trovato"
-                        : "Nessun evento in programma"}
-                    </h3>
-                    {hasSearch ? (
-                      <>
-                        <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                          Non ci sono prossimi eventi per “{query.trim()}”.
-                          {pastTotal > 0
-                            ? ` ${pastTotal} ${
-                                pastTotal === 1
-                                  ? "evento passato corrisponde"
-                                  : "eventi passati corrispondono"
-                              } invece alla ricerca.`
-                            : ""}
-                        </p>
-                        {pastTotal > 0 ? (
-                          <button
-                            className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-                            onClick={() => handleScopeChange("past")}
-                            type="button"
-                          >
-                            Mostra gli eventi passati
-                          </button>
-                        ) : null}
-                      </>
-                    ) : (
-                      <>
-                        <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                          {isAdmin
-                            ? "Crea il primo evento per iniziare a raccogliere le adesioni dei soci."
-                            : "Gli eventi creati dagli amministratori compariranno qui."}
-                        </p>
-                        {isAdmin ? (
-                          <button
-                            className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
-                            onClick={() => {
-                              setNotice(null);
-                              setIsCreateOpen(true);
-                            }}
-                            type="button"
-                          >
-                            <PlusIcon className="h-5 w-5" />
-                            Crea un evento
-                          </button>
-                        ) : null}
-                      </>
-                    )}
-                  </div>
+                        : "Nessun evento in programma"
+                    }
+                    tone={hasSearch ? "neutral" : "emerald"}
+                  />
                 )}
               </section>
             ) : null}
@@ -986,44 +1029,78 @@ export function EventsPage() {
                     />
                   </>
                 ) : (
-                  <div
-                    className="mt-4 rounded-3xl border border-zinc-200 bg-white p-8 text-center shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
-                    role="status"
-                  >
-                    <CalendarIcon className="mx-auto h-10 w-10 text-zinc-400 dark:text-zinc-500" />
-                    <h3 className="mt-3 text-xl font-semibold text-zinc-900 dark:text-zinc-50">
-                      {hasSearch
-                        ? "Nessun evento passato trovato"
-                        : "Nessun evento passato"}
-                    </h3>
-                    {hasSearch ? (
-                      <>
-                        <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                          Non ci sono eventi passati per “{query.trim()}”.
-                          {upcomingTotal > 0
-                            ? ` ${upcomingTotal} ${
-                                upcomingTotal === 1
-                                  ? "evento prossimo corrisponde"
-                                  : "eventi prossimi corrispondono"
-                              } invece alla ricerca.`
-                            : ""}
-                        </p>
-                        {upcomingTotal > 0 ? (
+                  <EmptyStateCard
+                    actions={
+                      hasSearch ? (
+                        <>
+                          {upcomingTotal > 0 ? (
+                            <button
+                              className={emptyStatePrimaryActionClass}
+                              onClick={() => handleScopeChange("upcoming")}
+                              type="button"
+                            >
+                              Mostra gli eventi prossimi
+                            </button>
+                          ) : null}
                           <button
-                            className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
-                            onClick={() => handleScopeChange("upcoming")}
+                            className={emptyStateSecondaryActionClass}
+                            onClick={() => handleSearchChange("")}
                             type="button"
                           >
-                            Mostra gli eventi prossimi
+                            Azzera ricerca
                           </button>
-                        ) : null}
-                      </>
-                    ) : (
-                      <p className="mx-auto mt-1 max-w-lg text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-                        Gli eventi conclusi compariranno qui dopo la loro data.
-                      </p>
-                    )}
-                  </div>
+                        </>
+                      ) : upcomingTotal > 0 ? (
+                        <button
+                          className={emptyStatePrimaryActionClass}
+                          onClick={() => handleScopeChange("upcoming")}
+                          type="button"
+                        >
+                          Torna ai prossimi eventi
+                        </button>
+                      ) : (
+                        <Link
+                          className={emptyStatePrimaryActionClass}
+                          href="/richieste"
+                        >
+                          Scrivi alla segreteria
+                          <ArrowRightIcon className="h-4 w-4" />
+                        </Link>
+                      )
+                    }
+                    className="mt-4"
+                    description={
+                      hasSearch
+                        ? `Non ci sono eventi passati per “${query.trim()}”.${
+                            upcomingTotal > 0
+                              ? ` ${upcomingTotal} ${
+                                  upcomingTotal === 1
+                                    ? "evento prossimo corrisponde"
+                                    : "eventi prossimi corrispondono"
+                                } invece alla ricerca.`
+                              : " Prova con una parola diversa o consulta i prossimi appuntamenti."
+                          }`
+                        : "Gli eventi conclusi compariranno qui dopo la loro data. Al momento non risultano appuntamenti passati."
+                    }
+                    hint={
+                      hasSearch
+                        ? "Il filtro “Passati” nasconde gli appuntamenti futuri."
+                        : upcomingTotal > 0
+                          ? `${upcomingTotal} ${
+                              upcomingTotal === 1
+                                ? "evento ti aspetta"
+                                : "eventi ti aspettano"
+                            } nella sezione “Prossimi”.`
+                          : "Puoi sempre consultare il calendario completo selezionando il filtro “Tutti”."
+                    }
+                    icon={<CalendarIcon className="h-6 w-6" />}
+                    title={
+                      hasSearch
+                        ? "Nessun evento passato trovato"
+                        : "Nessun evento passato"
+                    }
+                    tone={hasSearch ? "neutral" : "emerald"}
+                  />
                 )}
               </section>
             ) : null}

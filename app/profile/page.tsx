@@ -1,5 +1,20 @@
 "use client";
 
+/**
+ * ============================================================================
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
+ *
+ * In pratica: se cambi i campi del profilo, i formati di data o le regole
+ * sull’anno di leva, aggiorna esempi e messaggi di errore nello stesso PR.
+ * ============================================================================
+ */
+
 import {
   useCallback,
   useEffect,
@@ -121,7 +136,7 @@ function ProfileContent() {
       if (!isActive) return;
 
       if (error) {
-        setLoadError(error);
+        setLoadError(formatProfileError(error));
         setValues({ ...EMPTY_FORM, full_name: fallbackNameRef.current });
         setIsLoading(false);
         return;
@@ -179,7 +194,9 @@ function ProfileContent() {
         parsedYear < 1900 ||
         parsedYear > maxYear
       ) {
-        setSaveError(`Inserisci un anno di leva valido (1900–${maxYear}).`);
+        setSaveError(
+          `Inserisci un anno di leva a quattro cifre compreso tra 1900 e ${maxYear}. Esempio: 1985.`,
+        );
         return;
       }
 
@@ -390,6 +407,7 @@ function ProfileContent() {
                       </span>
                     </label>
                     <input
+                      aria-describedby="birth_date_hint"
                       autoComplete="bday"
                       className={inputClass}
                       disabled={isSaving}
@@ -399,6 +417,13 @@ function ProfileContent() {
                       type="date"
                       value={values.birth_date}
                     />
+                    <p
+                      className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                      id="birth_date_hint"
+                    >
+                      Formato gg/mm/aaaa. Puoi lasciare vuoto se non vuoi
+                      indicarla.
+                    </p>
                   </div>
 
                   <div>
@@ -412,6 +437,7 @@ function ProfileContent() {
                       </span>
                     </label>
                     <input
+                      aria-describedby="enlistment_year_hint"
                       className={inputClass}
                       disabled={isSaving}
                       id="enlistment_year"
@@ -426,6 +452,13 @@ function ProfileContent() {
                       type="number"
                       value={values.enlistment_year}
                     />
+                    <p
+                      className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
+                      id="enlistment_year_hint"
+                    >
+                      Anno a quattro cifre, tra 1900 e{" "}
+                      {new Date().getFullYear()}. Esempio: 1985.
+                    </p>
                   </div>
                 </div>
 

@@ -1,3 +1,4 @@
+import { formatFriendlyError } from "./error-messages";
 import {
   buildIlikeOr,
   getPageCount,
@@ -87,28 +88,20 @@ export function formatProfileError(message: string): string {
   ) {
     return "Solo un amministratore può approvare o rifiutare un account.";
   }
-  if (
-    normalized.includes("42703") ||
-    normalized.includes("pgrst204") ||
-    normalized.includes("does not exist")
-  ) {
-    return "La struttura del profilo non è aggiornata. Applica le migrazioni Supabase con npm run db:push.";
-  }
-  if (
-    normalized.includes("permission denied") ||
-    normalized.includes("42501") ||
-    normalized.includes("row-level security")
-  ) {
-    return "Non hai i permessi per modificare questo profilo. Verifica che le migrazioni Supabase siano state applicate al database.";
-  }
-  if (normalized.includes("duplicate key")) {
-    return "Esiste già una scheda collegata a questo account.";
-  }
-  if (normalized.includes("invalid input syntax")) {
-    return "Uno dei valori inseriti non è valido. Controlla i campi e riprova.";
-  }
 
-  return message;
+  return formatFriendlyError(message, {
+    fallback:
+      "Non è stato possibile completare l’operazione sulla scheda. Riprova tra poco; se il problema continua, contatta un amministratore.",
+    permission:
+      "Non hai i permessi per modificare questo profilo. Verifica che le migrazioni Supabase siano state applicate al database.",
+    missingTable:
+      "La struttura del profilo non è aggiornata. Applica le migrazioni Supabase con npm run db:push.",
+    duplicate: "Esiste già una scheda collegata a questo account.",
+    checkConstraint:
+      "I dati della scheda non rispettano i vincoli previsti. Controlla i campi e riprova.",
+    invalidInput:
+      "Uno dei valori inseriti non è valido. Controlla la data di nascita e l’anno di leva, poi riprova.",
+  });
 }
 
 export async function fetchProfile(
