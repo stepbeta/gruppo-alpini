@@ -23,6 +23,11 @@ export type AnnouncementState =
   | "expired"
   | "inactive";
 
+/** Time-only classification, independent from the manual activation flag. */
+export type AnnouncementWindowState = "scheduled" | "open" | "expired";
+
+export type AnnouncementFilter = "all" | "active" | "past";
+
 export const ANNOUNCEMENT_STATE_LABELS: Record<AnnouncementState, string> = {
   active: "Attivo",
   scheduled: "In programma",
@@ -84,34 +89,16 @@ export function formatAnnouncementError(message: string): string {
 }
 
 /**
- * Returns true when the banner is active and the current time is inside its
- * optional [start_date, end_date] window. Invalid stored dates are ignored so
- * a malformed row never breaks every authenticated page.
+ * Classifies the optional date window without considering `is_active`.
+ *
+ * Keeping the window separate from the activation flag matters for recurring
+ * notices: an expired banner that is still toggled on must not be presented as
+ * live, while a deactivated banner with a future window is not "past" yet.
  */
-export function isAnnouncementVisible(
-  announcement: Pick<Announcement, "is_active" | "start_date" | "end_date">,
+export function getAnnouncementWindowState(
+  announcement: Pick<Announcement, "start_date" | "end_date">,
   now = Date.now(),
-): boolean {
-  if (!announcement.is_active) return false;
-
-  const start = announcement.start_date
-    ? Date.parse(announcement.start_date)
-    : null;
-  const end = announcement.end_date ? Date.parse(announcement.end_date) : null;
-
-  if (start !== null && !Number.isNaN(start) && now < start) return false;
-  if (end !== null && !Number.isNaN(end) && now > end) return false;
-
-  return true;
-}
-
-/** Classifies a banner for the administration interface. */
-export function getAnnouncementState(
-  announcement: Pick<Announcement, "is_active" | "start_date" | "end_date">,
-  now = Date.now(),
-): AnnouncementState {
-  if (!announcement.is_active) return "inactive";
-
+): AnnouncementWindowState {
   const start = announcement.start_date
     ? Date.parse(announcement.start_date)
     : null;
@@ -123,12 +110,62 @@ export function getAnnouncementState(
 
   if (end !== null && !Number.isNaN(end) && now > end) return "expired";
 
+  return "open";
+}
+
+/**
+ * Returns true when the banner is active and the current time is inside its
+ * optional [start_date, end_date] window. Invalid stored dates are ignored so
+ * a malformed row never breaks every authenticated page.
+ */
+export function isAnnouncementVisible(
+  announcement: Pick<Announcement, "is_active" | "start_date" | "end_date">,
+  now = Date.now(),
+): boolean {
+  if (!announcement.is_active) return false;
+
+  return getAnnouncementWindowState(announcement, now) === "open";
+}
+
+/** Classifies a banner for the administration interface. */
+export function getAnnouncementState(
+  announcement: Pick<Announcement, "is_active" | "start_date" | "end_date">,
+  now = Date.now(),
+): AnnouncementState {
+  if (!announcement.is_active) return "inactive";
+
+  const windowState = getAnnouncementWindowState(announcement, now);
+  if (windowState === "scheduled") return "scheduled";
+  if (windowState === "expired") return "expired";
+
   return "active";
 }
 
+/**
+ * Applies the management page filters.
+ *
+ * `active` means visible right now. `past` groups every banner whose
+ * publication window is over, even when the activation flag is still on, so a
+ * re-enabled recurring notice is not mistaken for a live one. Scheduled and
+ * manually deactivated banners remain available under `all`.
+ */
+export function matchesAnnouncementFilter(
+  announcement: Pick<Announcement, "is_active" | "start_date" | "end_date">,
+  filter: AnnouncementFilter,
+  now = Date.now(),
+): boolean {
+  if (filter === "all") return true;
+  if (filter === "active") return isAnnouncementVisible(announcement, now);
+
+  return getAnnouncementWindowState(announcement, now) === "expired";
+}
+
 const dateFormatter = new Intl.DateTimeFormat("it-IT", {
-  dateStyle: "short",
-  timeStyle: "short",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
   timeZone: "Europe/Rome",
 });
 

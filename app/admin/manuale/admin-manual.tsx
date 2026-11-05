@@ -47,7 +47,7 @@ import {
 } from "@/components/icons";
 
 /** Update this date whenever the manual changes. */
-const MANUAL_LAST_UPDATED = "4 novembre 2026";
+const MANUAL_LAST_UPDATED = "5 novembre 2026";
 
 type ManualIcon = ComponentType<{ className?: string }>;
 
@@ -831,12 +831,28 @@ export function AdminManual() {
             </ManualNote>
 
             <div>
+              <SectionHeading>Filtrare gli avvisi</SectionHeading>
+              <ManualList
+                items={[
+                  "Tutti: mostra l’intero elenco, compresi gli avvisi in programma e quelli disattivati.",
+                  "Attivi: mostra solo gli avvisi visibili in questo momento, cioè accesi e dentro la finestra di pubblicazione.",
+                  "Passati: raccoglie gli avvisi la cui finestra di pubblicazione è già terminata, anche se l’interruttore è ancora acceso.",
+                ]}
+              />
+              <p className="mt-2">
+                Ogni scheda riporta la data di creazione e, separatamente, le
+                date di inizio e fine della pubblicazione. Se una data manca,
+                l’avviso non ha quel limite.
+              </p>
+            </div>
+
+            <div>
               <SectionHeading>Stati dell’avviso</SectionHeading>
               <ManualList
                 items={[
                   "Attivo: è pubblicato e visibile in questo momento.",
                   "In programma: inizierà più tardi, secondo la data di inizio.",
-                  "Scaduto: la data di fine è già passata.",
+                  "Scaduto: la data di fine è già passata. Se l’interruttore è ancora acceso, aggiorna la data di fine per ripubblicarlo.",
                   "Disattivato: è stato spento manualmente e non viene mostrato.",
                 ]}
               />

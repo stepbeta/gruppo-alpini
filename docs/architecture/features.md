@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Feature Implementations and UI Logic |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 4 November 2026 |
+| Snapshot date | 5 November 2026 |
 
 ### 2.6 Query and pagination architecture
 
@@ -96,7 +96,9 @@ Deleted members leave their requests behind with `user_id = NULL`; the board lab
 
 `announcement_banners` supports platform-wide messages with an optional inclusive date window and an active flag. Regular members see a banner only when it is active and the current time is inside its window; administrators see every row for management. When several rows qualify, the most recently created visible banner is shown.
 
-Administrators manage banners from `/avvisi`: create, edit, activate/deactivate, and delete. Mutations dispatch a browser event (`ANNOUNCEMENTS_CHANGED_EVENT`), and the header listens for it, so the visible banner updates without a reload. The header also reloads on window focus. A missing table or a network failure is swallowed intentionally; a banner problem must not break every authenticated page.
+Administrators manage banners from `/avvisi`: create, edit, activate/deactivate, and delete. Above the list, the **Tutti**, **Attivi**, and **Passati** chips filter the rows and show live counts. **Attivi** contains only banners visible right now. **Passati** groups banners whose publication window has ended, even if the activation toggle is still on, so a re-enabled recurring notice is not presented as live. Scheduled and manually deactivated rows remain under **Tutti**. Each card shows the creation timestamp plus separate start and end dates (or no limit) and explains when the activation flag conflicts with an expired window. The classification refreshes every minute, so a banner crossing its start or end boundary moves between chips without a page reload.
+
+Mutations dispatch a browser event (`ANNOUNCEMENTS_CHANGED_EVENT`), and the header listens for it, so the visible banner updates without a reload. The header also reloads on window focus. A missing table or a network failure is swallowed intentionally; a banner problem must not break every authenticated page.
 
 The route is also protected by the approval-restrictive policy. It is not currently covered by the consent-restrictive policy, so the blocking consent gate is the only layer preventing an unconsented direct API client from reading a visible banner. That is low-sensitivity content, but it is an inconsistency worth closing if the policy is meant to cover every portal surface.
 

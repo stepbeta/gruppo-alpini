@@ -1,6 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * ============================================================================
+ * AVVISI — REGOLA DI MANUTENZIONE
+ * ============================================================================
+ *
+ * Whenever announcement listing views, filters, lifecycle states, or
+ * management structures are modified in the application, this file and any
+ * related UI components must be updated simultaneously in the same pull
+ * request to keep code and behavior aligned.
+ *
+ * In pratica: se cambi l’elenco degli avvisi, i filtri, gli stati del ciclo di
+ * vita o la struttura di gestione, aggiorna questo file, i componenti UI
+ * collegati e la documentazione nello stesso pull request.
+ * ============================================================================
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -11,18 +27,19 @@ import {
   fetchAnnouncements,
   formatAnnouncementDate,
   formatAnnouncementError,
-  formatAnnouncementWindow,
   getAnnouncementState,
+  getAnnouncementWindowState,
   isAnnouncementVisible,
+  matchesAnnouncementFilter,
   setAnnouncementActive,
   type Announcement,
+  type AnnouncementFilter,
   type AnnouncementState,
 } from "@/lib/announcements";
 import {
   AlertCircleIcon,
   ArrowRightIcon,
   CheckCircleIcon,
-  ClockIcon,
   EyeIcon,
   EyeOffIcon,
   MegaphoneIcon,
@@ -45,10 +62,20 @@ const STATE_STYLES: Record<AnnouncementState, string> = {
     "border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400",
 };
 
+const ANNOUNCEMENT_FILTERS: ReadonlyArray<{
+  value: AnnouncementFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Tutti" },
+  { value: "active", label: "Attivi" },
+  { value: "past", label: "Passati" },
+];
+
 type AnnouncementCardProps = {
   announcement: Announcement;
   isDisplayed: boolean;
   isToggling: boolean;
+  now: number;
   onEdit: () => void;
   onToggle: () => void;
   onDelete: () => void;
@@ -58,11 +85,19 @@ function AnnouncementCard({
   announcement,
   isDisplayed,
   isToggling,
+  now,
   onEdit,
   onToggle,
   onDelete,
 }: AnnouncementCardProps) {
-  const state = getAnnouncementState(announcement);
+  const state = getAnnouncementState(announcement, now);
+  const windowState = getAnnouncementWindowState(announcement, now);
+  const windowHint =
+    windowState === "expired"
+      ? announcement.is_active
+        ? "L’avviso è ancora attivo, ma la finestra è conclusa: aggiorna la data di fine per ripubblicarlo."
+        : "La finestra è conclusa: aggiorna la data di fine prima di riattivarlo."
+      : null;
 
   return (
     <article
@@ -92,15 +127,42 @@ function AnnouncementCard({
             {announcement.message}
           </p>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
-            <span className="inline-flex items-center gap-1.5">
-              <ClockIcon className="h-3.5 w-3.5" />
-              {formatAnnouncementWindow(announcement)}
-            </span>
-            <span>
-              Creato il {formatAnnouncementDate(announcement.created_at)}
-            </span>
-          </div>
+          <dl className="mt-4 grid gap-3 rounded-xl border border-zinc-100 bg-zinc-50/70 p-3.5 sm:grid-cols-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div>
+              <dt className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
+                Creato il
+              </dt>
+              <dd className="mt-1 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                {formatAnnouncementDate(announcement.created_at)}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
+                Inizio
+              </dt>
+              <dd className="mt-1 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                {announcement.start_date
+                  ? formatAnnouncementDate(announcement.start_date)
+                  : "Nessun limite"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-zinc-400 dark:text-zinc-500">
+                Fine
+              </dt>
+              <dd className="mt-1 text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                {announcement.end_date
+                  ? formatAnnouncementDate(announcement.end_date)
+                  : "Nessun limite"}
+              </dd>
+            </div>
+          </dl>
+
+          {windowHint ? (
+            <p className="mt-2.5 text-xs leading-5 text-amber-700 dark:text-amber-300">
+              {windowHint}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex shrink-0 flex-wrap gap-2">
@@ -155,6 +217,8 @@ export function AnnouncementsAdmin() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [filter, setFilter] = useState<AnnouncementFilter>("all");
+  const [now, setNow] = useState(0);
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] =
@@ -211,11 +275,54 @@ export function AnnouncementsAdmin() {
     };
   }, [userId, reloadKey]);
 
+  // Lifecycle changes happen with the clock: a scheduled banner becomes active
+  // and an active one expires without a page reload. Refresh the classification
+  // every minute so filters and badges stay truthful.
+  useEffect(() => {
+    const tick = () => setNow(Date.now());
+    const timeout = window.setTimeout(tick, 0);
+    const interval = window.setInterval(tick, 60_000);
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const referenceNow = now;
+
   const displayedAnnouncement =
     announcements.find((announcement) =>
-      isAnnouncementVisible(announcement),
+      isAnnouncementVisible(announcement, referenceNow),
     ) ?? null;
   const displayedId = displayedAnnouncement?.id ?? null;
+
+  const filterCounts = useMemo(() => {
+    const counts: Record<AnnouncementFilter, number> = {
+      all: announcements.length,
+      active: 0,
+      past: 0,
+    };
+
+    for (const announcement of announcements) {
+      if (matchesAnnouncementFilter(announcement, "active", referenceNow)) {
+        counts.active += 1;
+      }
+      if (matchesAnnouncementFilter(announcement, "past", referenceNow)) {
+        counts.past += 1;
+      }
+    }
+
+    return counts;
+  }, [announcements, referenceNow]);
+
+  const filteredAnnouncements = useMemo(
+    () =>
+      announcements.filter((announcement) =>
+        matchesAnnouncementFilter(announcement, filter, referenceNow),
+      ),
+    [announcements, filter, referenceNow],
+  );
 
   const handleCloseCreate = useCallback(() => {
     setIsCreateOpen(false);
@@ -231,6 +338,7 @@ export function AnnouncementsAdmin() {
 
   function handleCreated(created: Announcement) {
     setAnnouncements((current) => [created, ...current]);
+    setFilter("all");
     setIsCreateOpen(false);
     setNotice("Avviso creato.");
   }
@@ -414,7 +522,63 @@ export function AnnouncementsAdmin() {
           </div>
         ) : (
           <>
-            <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900 dark:bg-amber-950/30">
+            <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div
+                  aria-label="Filtra gli avvisi"
+                  className="flex flex-wrap gap-2"
+                  role="group"
+                >
+                  {ANNOUNCEMENT_FILTERS.map((item) => {
+                    const isSelected = filter === item.value;
+
+                    return (
+                      <button
+                        aria-pressed={isSelected}
+                        className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
+                          isSelected
+                            ? "border-emerald-700 bg-emerald-700 text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                            : "border-zinc-300 bg-white text-zinc-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-200"
+                        }`}
+                        key={item.value}
+                        onClick={() => setFilter(item.value)}
+                        type="button"
+                      >
+                        {item.label}
+                        <span
+                          className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+                            isSelected
+                              ? "bg-white/20 text-white"
+                              : "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                          }`}
+                        >
+                          {filterCounts[item.value]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <p
+                  aria-live="polite"
+                  className="text-sm text-zinc-500 dark:text-zinc-400"
+                >
+                  {filteredAnnouncements.length}{" "}
+                  {filteredAnnouncements.length === 1
+                    ? "avviso in questa vista"
+                    : "avvisi in questa vista"}
+                </p>
+              </div>
+
+              <p className="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                Attivi mostra solo gli avvisi visibili in questo momento.
+                Passati raccoglie quelli con la finestra di pubblicazione
+                conclusa; gli avvisi in programma o disattivati restano in
+                Tutti.
+              </p>
+            </div>
+
+            <section className="mt-4 rounded-2xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900 dark:bg-amber-950/30">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
                   <MegaphoneIcon className="h-5 w-5" />
@@ -433,7 +597,7 @@ export function AnnouncementsAdmin() {
             </section>
 
             {announcements.length === 0 ? (
-              <div className="mt-6 rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+              <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
                   <MegaphoneIcon className="h-6 w-6" />
                 </span>
@@ -453,17 +617,41 @@ export function AnnouncementsAdmin() {
                   Nuovo avviso
                 </button>
               </div>
+            ) : filteredAnnouncements.length === 0 ? (
+              <div className="mt-4 rounded-2xl border border-dashed border-zinc-300 bg-white p-8 text-center shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                  <MegaphoneIcon className="h-6 w-6" />
+                </span>
+                <h2 className="mt-4 text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                  {filter === "active"
+                    ? "Nessun avviso attivo"
+                    : "Nessun avviso passato"}
+                </h2>
+                <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-zinc-500 dark:text-zinc-400">
+                  {filter === "active"
+                    ? "In questo momento nessun avviso è attivo e dentro la finestra di pubblicazione. Apri Tutti per vedere quelli in programma o disattivati."
+                    : "Nessun avviso ha una finestra di pubblicazione già conclusa. Apri Tutti per vedere quelli attivi, in programma o disattivati."}
+                </p>
+                <button
+                  className="mt-5 inline-flex items-center justify-center rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+                  onClick={() => setFilter("all")}
+                  type="button"
+                >
+                  Mostra tutti gli avvisi
+                </button>
+              </div>
             ) : (
               <section
                 aria-label="Elenco degli avvisi"
-                className="mt-6 space-y-4"
+                className="mt-4 space-y-4"
               >
-                {announcements.map((announcement) => (
+                {filteredAnnouncements.map((announcement) => (
                   <AnnouncementCard
                     announcement={announcement}
                     isDisplayed={announcement.id === displayedId}
                     isToggling={togglingId === announcement.id}
                     key={announcement.id}
+                    now={referenceNow}
                     onDelete={() => handleOpenDelete(announcement)}
                     onEdit={() => handleOpenEdit(announcement)}
                     onToggle={() => handleToggle(announcement)}
@@ -473,8 +661,10 @@ export function AnnouncementsAdmin() {
             )}
 
             <p className="mt-5 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-              Gli avvisi disattivati, in programma o scaduti restano in questo
-              elenco e non sono visibili ai soci.
+              Gli avvisi disattivati, in programma o scaduti restano disponibili
+              nel filtro Tutti e non sono visibili ai soci. Un avviso con la
+              finestra conclusa deve essere modificato prima di poter essere
+              ripubblicato.
             </p>
           </>
         )}
