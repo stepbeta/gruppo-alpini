@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Brand } from "@/components/brand";
+import { ThemeToggle } from "@/components/theme-toggle";
 import {
   ArrowRightIcon,
   CheckCircleIcon,
@@ -75,14 +76,17 @@ export default async function PrivacyPage() {
           >
             <Brand compact />
           </Link>
-          <Link
-            aria-label="Torna al portale"
-            className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:px-3 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
-            href="/"
-          >
-            <ArrowRightIcon className="h-4 w-4 rotate-180" />
-            <span className="hidden sm:inline">Torna al portale</span>
-          </Link>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              aria-label="Torna al portale"
+              className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:px-3 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+              href="/"
+            >
+              <ArrowRightIcon className="h-4 w-4 rotate-180" />
+              <span className="hidden sm:inline">Torna al portale</span>
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -556,7 +560,9 @@ export default async function PrivacyPage() {
               Non usiamo cookie pubblicitari e non raccogliamo dati per
               mostrarti annunci. Per mantenerti collegato, il portale conserva
               la sessione di accesso nel browser. Quando esci, la sessione viene
-              cancellata.
+              cancellata. Il portale salva inoltre una preferenza locale per il
+              tema chiaro, scuro o di sistema: non contiene dati personali e
+              puoi rimuoverla cancellando i dati del sito dal browser.
             </p>
           </section>
 

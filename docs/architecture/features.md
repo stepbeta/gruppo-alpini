@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Feature Implementations and UI Logic |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 5 November 2026 |
+| Snapshot date | 6 November 2026 |
 
 ### 2.6 Query and pagination architecture
 
@@ -38,13 +38,17 @@ Post-login deep links use two mechanisms. Email/password sign-in keeps the desti
 
 ### 2.8 Rendering, caching, and generated metadata
 
-Every authenticated page renders its content inside `AuthGuard`, and the interactive data screens are client components; route files are server components when they need static `metadata`. The root layout only provides the HTML shell, fonts, `AuthProvider`, and `PostAuthRedirect`. This keeps session handling in one place and avoids server-side session cookies.
+Every authenticated page renders its content inside `AuthGuard`, and the interactive data screens are client components; route files are server components when they need static `metadata`. The root layout provides the HTML shell, fonts, the blocking theme script, `ThemeProvider`, `AuthProvider`, and `PostAuthRedirect`. This keeps session and theme handling in one place and avoids server-side session cookies.
 
 `/admin/manuale` follows the same pattern but adds one client-side check: `AuthProvider` now exposes `isAdmin`, derived from the profile already fetched for the approval gate, and the manual renders an “Accesso riservato” panel for authenticated non-administrators. The page has no database dependency of its own; its content is static and must be updated alongside feature or schema changes. The route appears in the header and in the administrator shortcuts on the home page only when `isAdmin` is true.
 
 `/privacy` is the exception. It is a server-rendered public page, not wrapped in `AuthGuard`, and it reads the single `organization_settings` row through the `anon` role. `getOrganizationSettings()` uses Next.js `"use cache"` with `cacheLife("hours")`, so the page is prerendered and refreshed at most hourly. If Supabase is unconfigured or the migration is missing, it falls back to neutral values rather than failing the build.
 
 The last-modified date shown on the policy page is the later of the settings row's `updated_at` and the last modification of `app/privacy/page.tsx`. `scripts/generate-privacy-meta.mjs` runs before `dev`, `build`, and `typecheck`; it uses the git commit date for a clean file and the later of the commit date and the file mtime for a locally modified file, writing the git-ignored `lib/generated/privacy-page-meta.ts`.
+
+The visual theme is a device-level preference, not an account attribute. Three modes are supported — `system` (the default), `light`, and `dark` — and the header toggle cycles through them in the fixed order `system → light → dark → system`. The choice is stored in `localStorage` under `gruppo-alpini:theme:v1` and is shared by every page in the browser, including the public login, password-recovery, privacy, consent, approval, and help screens. It is never written to Supabase.
+
+Tailwind CSS 4 uses the class-based dark variant declared in `app/globals.css` (`@custom-variant dark (&:where(.dark, .dark *))`), so the `.dark` class on `<html>` drives every `dark:` utility. A minimal inline script in `app/layout.tsx` runs before hydration, reads the stored mode, resolves `system` through `matchMedia('(prefers-color-scheme: dark)')`, and sets the class and `color-scheme` before the first paint to avoid a flash of the wrong theme. `ThemeProvider` then keeps the class in sync, listens for OS appearance changes while in `system` mode, follows cross-tab storage changes, and updates the `theme-color` meta tag when present. The inline script tolerates unavailable storage by falling back to `system`; the provider keeps the toggle usable in memory for the current tab.
 
 ### 3.1 Identity, onboarding, and account lifecycle
 

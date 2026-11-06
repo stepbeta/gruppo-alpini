@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { Brand } from "./brand";
+import { ThemeToggle } from "./theme-toggle";
 
 type AuthScreenProps = {
   title: string;
@@ -16,6 +17,7 @@ export function AuthScreen({
 }: AuthScreenProps) {
   return (
     <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-zinc-50 px-4 py-10 dark:bg-zinc-950">
+      <ThemeToggle className="absolute right-4 top-4 z-10 bg-white/80 shadow-sm dark:bg-zinc-950/80" />
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-emerald-100/80 to-transparent dark:from-emerald-950/40"

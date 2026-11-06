@@ -1,5 +1,16 @@
 "use client";
 
+/**
+ * ============================================================================
+ * HEADER NAVIGATION & CONTROLS — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever navigation items, header controls, or their routes are modified in
+ * the application, keep this header and the member help hub aligned in the
+ * same pull request.
+ * ============================================================================
+ */
+
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -7,6 +18,7 @@ import { Brand } from "./brand";
 import { AnnouncementBanner } from "./announcement-banner";
 import { getInitials, getUserDisplayName } from "@/lib/display";
 import { useAuth } from "./auth-provider";
+import { ThemeToggle } from "./theme-toggle";
 import {
   BookOpenIcon,
   CalendarIcon,
@@ -105,6 +117,7 @@ export function SiteHeader() {
           </nav>
 
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <Link
               aria-current={pathname === "/faq" ? "page" : undefined}
               aria-label="Apri la guida rapida e le FAQ"
@@ -120,7 +133,7 @@ export function SiteHeader() {
             </Link>
             <Link
               aria-label="Apri il tuo profilo"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-700 text-xs font-semibold text-white ring-2 ring-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:ring-zinc-950"
+              className="hidden h-9 w-9 items-center justify-center rounded-full bg-emerald-700 text-xs font-semibold text-white ring-2 ring-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 sm:flex dark:ring-zinc-950"
               href="/profile"
               title={displayName}
             >
