@@ -131,3 +131,19 @@ Member-facing screens use shared contextual UI instead of leaving blank areas or
 - Event date/time fields and profile enlistment-year fields show Italian examples (`gg/mm/aaaa`, `HH:mm`, `Es. 1985`) and describe optional fields next to the input.
 - `lib/error-messages.ts` centralizes the translation of network, expired-session, permission, missing-migration, constraint, duplicate and invalid-input failures. Feature-specific formatters in `lib/events.ts`, `lib/requests.ts`, and `lib/profile.ts` supply their own context and fallback text, and the directory uses the shared helper directly. Raw PostgREST wording is not shown to members.
 - The modified UI and component files carry the maintenance rule in their header comments: when features, workflows, validation rules, or routes change, the related empty states, hints, and error messages must be reviewed in the same pull request.
+
+### 3.13 Member help hub (FAQ / “Guida rapida”)
+
+`/faq` is a static, Italian-language help page for members. It is rendered inside the new `SessionGuard`, which requires a signed-in account but deliberately skips the privacy-consent and approval gates. That exception is safe only because the page performs no Supabase data reads and contains no member, event, or request data; it must remain reachable from the consent and approval holding screens.
+
+The page is organized around member intent rather than route names. It opens with four shortcuts and then answers five questions using native `<details>` elements, so the accordion works with keyboard and screen readers without extra JavaScript. The answers cover:
+
+- changing or revoking an RSVP by selecting `Presente`, `In forse`, or `Assente`;
+- finding previous secretariat requests and submitting a new one;
+- searching the member directory and reading the visible profile fields;
+- editing personal data, password/email, and understanding approval status;
+- the registration-approval workflow, versioned privacy consent, and data rights.
+
+Each answer contains a direct link to the relevant surface: `/eventi`, `/richieste#nuova-richiesta` and `/richieste#le-mie-richieste`, `/iscritti#cerca-iscritti`, `/profile#dati-personali`, `/profile#sicurezza`, `/profile#esporta-dati`, and `/privacy`. Because the requests and directory sections mount only after their client data loads, those screens replay the URL-hash scroll through `lib/use-hash-scroll.ts` once the content is ready. The help page is linked from the site footer, the header help icon, the approval holding screen, and the consent screen.
+
+The FAQ component file starts with a maintenance rule: whenever features, workflows, or navigation paths change, the questions, answers, and deep-link targets must be updated in the same pull request. The page adds no migration and no database object.

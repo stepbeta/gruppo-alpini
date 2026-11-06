@@ -168,6 +168,18 @@ export function PrivacyConsentGate() {
               </ul>
             </div>
 
+            <p className="mt-3 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+              Vuoi una panoramica delle funzioni del portale prima di
+              proseguire? Consulta la{" "}
+              <Link
+                className="font-semibold text-emerald-700 underline underline-offset-2 transition hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+                href="/faq"
+              >
+                Guida rapida
+              </Link>
+              .
+            </p>
+
             <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
               <div className="flex items-start gap-3">
                 <input

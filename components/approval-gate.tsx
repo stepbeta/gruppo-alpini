@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   downloadUserDataExport,
@@ -176,6 +177,17 @@ export function ApprovalGate() {
             </li>
           </ul>
         ) : null}
+
+        <p className="mt-4 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+          Vuoi capire meglio questa fase? Consulta la{" "}
+          <Link
+            className="font-semibold text-emerald-700 underline underline-offset-2 transition hover:text-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+            href="/faq"
+          >
+            Guida rapida
+          </Link>
+          .
+        </p>
 
         {actionError ? (
           <div

@@ -119,6 +119,16 @@ export function BookOpenIcon({ className }: IconProps) {
   );
 }
 
+export function HelpCircleIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.1a2.7 2.7 0 0 1 5.2.9c0 1.9-2.6 2.1-2.6 4.1" />
+      <path d="M12 17.2h.01" />
+    </IconBase>
+  );
+}
+
 export function PlusIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>

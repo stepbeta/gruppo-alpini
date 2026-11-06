@@ -81,7 +81,10 @@ export function SecurityCredentials({ user }: SecurityCredentialsProps) {
   }
 
   return (
-    <section className="mt-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
+    <section
+      className="mt-6 scroll-mt-24 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900"
+      id="sicurezza"
+    >
       <div className="flex items-start gap-3">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
           <ShieldCheckIcon className="h-5 w-5" />

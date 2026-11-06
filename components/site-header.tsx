@@ -10,6 +10,7 @@ import { useAuth } from "./auth-provider";
 import {
   BookOpenIcon,
   CalendarIcon,
+  HelpCircleIcon,
   HomeIcon,
   LogOutIcon,
   MailIcon,
@@ -104,6 +105,19 @@ export function SiteHeader() {
           </nav>
 
           <div className="flex items-center gap-2">
+            <Link
+              aria-current={pathname === "/faq" ? "page" : undefined}
+              aria-label="Apri la guida rapida e le FAQ"
+              className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
+                pathname === "/faq"
+                  ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                  : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+              }`}
+              href="/faq"
+              title="Guida rapida e FAQ"
+            >
+              <HelpCircleIcon className="h-4.5 w-4.5" />
+            </Link>
             <Link
               aria-label="Apri il tuo profilo"
               className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-700 text-xs font-semibold text-white ring-2 ring-white transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:ring-zinc-950"

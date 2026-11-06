@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Product Scope and Operating Model |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 4 November 2026 |
+| Snapshot date | 5 November 2026 |
 
 ## 1. High-Level Purpose & Features
 
@@ -30,9 +30,9 @@ The application has five practical access levels. There is no separate role tabl
 | Role | How the role is reached | What the role can do | What the role cannot do |
 | --- | --- | --- | --- |
 | **Visitor (anonymous)** | No Supabase session | Open `/login`, `/login/forgot`, `/login/reset-password`, and the public `/privacy` page | Read any member, event, request, or announcement data |
-| **Unconsented authenticated account** | Signed in, but no consent row for the current policy version | See the blocking `Consenso necessario` screen, record consent, delete their own account, and sign out | Enter the portal through the UI; read member-data tables covered by the consent-restrictive policies |
-| **Pending or rejected member** | Signed in and consent accepted, but `approval_status` is not `approved` | See the `Account in attesa di approvazione` or rejection screen, export their own data, delete their own account, and sign out | Read the directory, events, responses, requests, announcements, or shop data |
-| **Approved member** | `approval_status = 'approved'` | Use the home page, member directory, event calendar and RSVP, personal request form and history, announcement banner, profile, credentials, export, and self-deletion | Use administrative controls, read other members' RSVPs, or read the secretariat board |
+| **Unconsented authenticated account** | Signed in, but no consent row for the current policy version | See the blocking `Consenso necessario` screen, record consent, open the static `/faq` help page, delete their own account, and sign out | Enter the portal through the UI; read member-data tables covered by the consent-restrictive policies |
+| **Pending or rejected member** | Signed in and consent accepted, but `approval_status` is not `approved` | See the `Account in attesa di approvazione` or rejection screen, open the static `/faq` help page, export their own data, delete their own account, and sign out | Read the directory, events, responses, requests, announcements, or shop data |
+| **Approved member** | `approval_status = 'approved'` | Use the home page, member directory, event calendar and RSVP, personal request form and history, announcement banner, profile, credentials, export, self-deletion, and the `/faq` help hub | Use administrative controls, read other members' RSVPs, or read the secretariat board |
 | **Administrator** | `profiles.is_admin = true` | Everything an approved member can do, plus approve/reject accounts, edit member profiles, create/edit/delete events, see all RSVPs and attendance totals, read and resolve all requests, manage announcements, export another member's data, delete another member's account, and read the in-app administrator manual | The database still enforces privacy consent; administrator status is deliberately treated as approved, so the role is not a bypass around the consent gate |
 
 Administrators are treated as approved by both the database helper `is_current_user_approved()` and the client. This is deliberate: an accidentally rejected administrator must not lose the ability to repair accounts. The privacy-consent requirement still applies to administrators.
@@ -46,6 +46,7 @@ There is also a machine role, `service_role`, used only by the server-side accou
 | **Identity and access** | Email/password sign-up and sign-in, Google OAuth, email confirmation, password recovery, password change, email change, provider-aware credential UI, Italian error messages, safe post-login redirects | `/login`, `/login/forgot`, `/login/reset-password`, `/profile` |
 | **Onboarding and consent** | First-login blocking privacy consent, versioned consent history, acceptance alternatives (sign out or delete account), administrator approval workflow | `PrivacyConsentGate`, `ApprovalGate`, `/profile` |
 | **Home** | Personal greeting, quick links, administrator shortcuts (including the manual), announcement banner | `/` |
+| **Member help** | Static task-oriented FAQ / “Guida rapida” with deep links to events, requests, directory, profile, and privacy; reachable from the footer, header, and holding screens | `/faq` |
 | **Member directory** | Approved-member directory, name/service-place search, server-side pagination, administrator pending filter, profile editing, approval badges, deletion | `/iscritti` |
 | **Events and RSVP** | Upcoming and past event lists with **Tutti** / **Prossimi** / **Passati** filter chips, search, pagination, Italian date/time input, all-day events, `Presente` / `In forse` / `Assente` responses, attendance totals and names for administrators, event CRUD, reusable event templates, shareable deep links | `/eventi` |
 | **Requests** | Personal request submission and history, secretariat board for administrators, status filtering, open/resolved counts, resolve/reopen actions | `/richieste` |

@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Security, Data Model, RLS, and Privacy Flows |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 4 November 2026 |
+| Snapshot date | 5 November 2026 |
 
 ### 2.4 Data model
 
@@ -48,6 +48,8 @@ On top of the table policies, two restrictive layers apply:
 
 - **Privacy consent.** `has_accepted_privacy_consent()` is a `SECURITY DEFINER` helper. Restrictive policies require it on `profiles`, `events`, `event_responses`, `generic_requests`, `event_templates`, `purchase_items`, and `purchase_orders`. The helper returns true for any recorded consent version; the client is responsible for requiring the current version.
 - **Account approval.** `is_current_user_approved()` requires `approval_status = 'approved'` or `is_admin = true`. Restrictive policies require it on events, responses, requests, event templates, purchase tables, and announcement banners. The profile read policy separately allows an account to read its own row so the holding screen can explain the situation.
+
+The static `/faq` help page is a deliberate exception to the two UI gates. `SessionGuard` requires a session but not privacy consent or approval, because the page must remain reachable from the consent and approval holding screens and performs no Supabase data reads. It must not be extended with member, event, or request data without re-evaluating that boundary.
 
 The helpers are `SECURITY DEFINER` for a specific reason: a policy on `profiles` that queries `profiles` would otherwise recurse. Running the small lookup as the function owner bypasses RLS for that lookup while keeping the authorization decision explicit.
 

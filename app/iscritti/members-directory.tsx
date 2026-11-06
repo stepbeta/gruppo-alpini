@@ -42,6 +42,7 @@ import {
   type Member,
 } from "@/lib/profile";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { useHashScroll } from "@/lib/use-hash-scroll";
 import {
   AlertCircleIcon,
   ArrowRightIcon,
@@ -219,6 +220,9 @@ export function MembersDirectory() {
   const isFiltering = hasSearch || showPendingOnly;
   const hasResults = members.length > 0;
   const loadError = profileError ?? membersError;
+
+  useHashScroll(!isLoading && !loadError && (hasDirectory || isFiltering));
+
   const rangeStart =
     totalResults === 0 ? 0 : (page - 1) * MEMBER_PAGE_SIZE + 1;
   const rangeEnd = Math.min(page * MEMBER_PAGE_SIZE, totalResults);
@@ -359,7 +363,10 @@ export function MembersDirectory() {
         </div>
 
         {!isLoading && !loadError && (hasDirectory || isFiltering) ? (
-          <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900">
+          <div
+            className="mt-6 scroll-mt-24 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm sm:p-5 dark:border-zinc-800 dark:bg-zinc-900"
+            id="cerca-iscritti"
+          >
             <label className="sr-only" htmlFor="member-search">
               Cerca iscritti per nome o luogo di servizio
             </label>

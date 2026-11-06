@@ -331,7 +331,10 @@ function ProfileContent() {
           ) : null}
         </section>
 
-        <section className="mt-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
+        <section
+          className="mt-6 scroll-mt-24 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900"
+          id="dati-personali"
+        >
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
               Dati personali
@@ -529,7 +532,10 @@ function ProfileContent() {
           )}
         </section>
 
-        <section className="mt-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
+        <section
+          className="mt-6 scroll-mt-24 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900"
+          id="esporta-dati"
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-2xl">
               <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">

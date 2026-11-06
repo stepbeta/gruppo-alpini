@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Technology Stack & Runtime Topology |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 4 November 2026 |
+| Snapshot date | 5 November 2026 |
 
 ## 2. Tech Stack & Architecture
 
@@ -41,7 +41,8 @@ The important architectural fact is that **the Next.js server is not the primary
 | Path | Responsibility |
 | --- | --- |
 | `app/` | App Router route segments. Most authenticated pages are thin server wrappers around client components; `/privacy` is a server component; `/api/account/delete` is the only route handler[cite: 9]. |
-| `components/` | Shared UI and access gates: `AuthProvider`, `AuthGuard`, `PrivacyConsentGate`, `ApprovalGate`, header/footer, dialogs, forms, pagination, banner, configuration notice[cite: 9]. |
+| `components/` | Shared UI and access gates: `AuthProvider`, `AuthGuard`, `SessionGuard`, `PrivacyConsentGate`, `ApprovalGate`, header/footer, dialogs, forms, pagination, banner, configuration notice[cite: 9]. |
+| `app/faq/` | Static Italian member help hub with deep links to member features; gated by session only so it remains available on consent and approval holding screens[cite: 9]. |
 | `lib/` | Domain and data-access helpers: profiles, events, event templates, requests, announcements, consent, exports, auth actions, redirects, privacy metadata, pagination, display helpers, and the browser Supabase singleton[cite: 9]. |
 | `lib/events.ts` | Event/RSVP types, date parsing/formatting, pagination filters, and CRUD helpers[cite: 9]. |
 | `lib/event-templates.ts` | Event-template types, validation, time normalization, CRUD helpers, and conversion of an existing event into template input[cite: 9]. |
@@ -51,7 +52,7 @@ The important architectural fact is that **the Next.js server is not the primary
 | `supabase/migrations/` | Ordered SQL migrations. These define the real security boundary[cite: 9]. |
 | `scripts/generate-privacy-meta.mjs` | Generates the last-modified timestamp used by the public privacy page before `dev`, `build`, and `typecheck`[cite: 9]. |
 
-`AuthProvider` is the client-side session authority. It subscribes to `onAuthStateChange`, restores the current session, checks the current consent version, and fetches the profile only after consent is accepted. It exposes consent and approval status to `AuthGuard`, which decides between the loading screen, configuration notice, consent gate, approval gate, and the requested page[cite: 9].
+`AuthProvider` is the client-side session authority. It subscribes to `onAuthStateChange`, restores the current session, checks the current consent version, and fetches the profile only after consent is accepted. It exposes consent and approval status to `AuthGuard`, which decides between the loading screen, configuration notice, consent gate, approval gate, and the requested page. `SessionGuard` is the narrower variant used by the static `/faq` guide: it redirects anonymous visitors to `/login` but intentionally allows signed-in accounts that have not yet consented or been approved[cite: 9].
 
 The client Supabase singleton is created with `persistSession`, `autoRefreshToken`, and `detectSessionInUrl`. When the environment variables are missing or still placeholders, it is `null` and the UI shows a configuration notice instead of crashing[cite: 9].
 

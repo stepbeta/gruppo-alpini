@@ -52,6 +52,7 @@ import {
   type RequestCounts,
 } from "@/lib/requests";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
+import { useHashScroll } from "@/lib/use-hash-scroll";
 import {
   AlertCircleIcon,
   ArrowRightIcon,
@@ -153,6 +154,8 @@ export function RequestsPage() {
   const boardDidLoadRef = useRef(false);
   const mySectionRef = useRef<HTMLElement>(null);
   const boardSectionRef = useRef<HTMLElement>(null);
+
+  useHashScroll(!isLoading && !profileError && !myError);
 
   useEffect(() => {
     if (!userId) return;
@@ -534,7 +537,10 @@ export function RequestsPage() {
         {!isLoading && !loadError ? (
           <>
             <div className="mt-8 grid gap-5 lg:grid-cols-5">
-              <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2 dark:border-zinc-800 dark:bg-zinc-900">
+              <section
+                className="scroll-mt-24 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-2 dark:border-zinc-800 dark:bg-zinc-900"
+                id="nuova-richiesta"
+              >
                 <div className="flex items-center gap-2">
                   <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                     <MailIcon className="h-4.5 w-4.5" />
@@ -618,6 +624,7 @@ export function RequestsPage() {
 
               <section
                 className="scroll-mt-24 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm sm:p-6 lg:col-span-3 dark:border-zinc-800 dark:bg-zinc-900"
+                id="le-mie-richieste"
                 ref={mySectionRef}
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
