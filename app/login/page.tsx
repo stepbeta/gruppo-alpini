@@ -4,7 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { formatAuthError } from "@/lib/auth-actions";
+import { formatAuthError, isValidEmail } from "@/lib/auth-actions";
 import {
   clearPostAuthRedirect,
   readLoginRedirect,
@@ -122,6 +122,11 @@ export default function LoginPage() {
 
     if (!cleanEmail) {
       setError("Inserisci il tuo indirizzo email.");
+      return;
+    }
+
+    if (!isValidEmail(cleanEmail)) {
+      setError("Inserisci un indirizzo email valido, ad esempio nome@esempio.it.");
       return;
     }
 
@@ -258,7 +263,7 @@ export default function LoginPage() {
           <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
         </div>
 
-        <form className="space-y-4" onSubmit={handleEmailSubmit}>
+        <form className="space-y-4" noValidate onSubmit={handleEmailSubmit}>
           {mode === "signup" ? (
             <div>
               <label

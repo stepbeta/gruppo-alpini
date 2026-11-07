@@ -31,7 +31,7 @@ import {
 } from "./icons";
 
 const navItems = [
-  { href: "/", label: "Home", icon: HomeIcon },
+  { href: "/", label: "Inizio", icon: HomeIcon },
   { href: "/eventi", label: "Eventi", icon: CalendarIcon },
   { href: "/iscritti", label: "Iscritti", icon: UsersIcon },
   { href: "/richieste", label: "Richieste", icon: MailIcon },
@@ -80,7 +80,7 @@ export function SiteHeader() {
       <div className="mx-auto w-full max-w-5xl px-4 py-3 sm:px-6">
         <div className="flex items-center justify-between gap-4">
           <Link
-            aria-label="Torna alla home"
+            aria-label="Torna alla pagina iniziale"
             className="rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600"
             href="/"
           >

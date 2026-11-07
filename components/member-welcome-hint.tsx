@@ -132,8 +132,8 @@ export function MemberWelcomeHint({ userId }: MemberWelcomeHintProps) {
               Il portale in quattro mosse
             </h2>
             <p className="mt-1 max-w-2xl text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-              Ecco le azioni più utili per iniziare: puoi tornare a questa home
-              in qualsiasi momento per ritrovarle.
+              Ecco le azioni più utili per iniziare: puoi tornare a questa pagina
+              iniziale in qualsiasi momento per ritrovarle.
             </p>
           </div>
         </div>

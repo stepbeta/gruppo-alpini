@@ -514,7 +514,7 @@ export function AnnouncementsAdmin() {
                   className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
                   href="/"
                 >
-                  Torna alla home
+                  Torna alla pagina iniziale
                   <ArrowRightIcon className="h-4 w-4" />
                 </Link>
               </div>

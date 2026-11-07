@@ -1,5 +1,11 @@
 import { formatFriendlyError } from "./error-messages";
 import {
+  formatItalianDateInput,
+  formatItalianDateTimeInput,
+  type ItalianDateTimeInput,
+  type ParsedItalianDateTime,
+} from "./italian-date";
+import {
   buildIlikeOr,
   getPageCount,
   getPageRange,
@@ -44,10 +50,7 @@ export type EventDateInput = {
   time: string;
 };
 
-export type ParsedEventDateTime = {
-  date: Date;
-  isAllDay: boolean;
-};
+export type ParsedEventDateTime = ParsedItalianDateTime;
 
 export type EventScope = "upcoming" | "past";
 
@@ -138,99 +141,20 @@ export function formatEventDateInput(
   value: string,
   isAllDay = false,
 ): EventDateInput {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return { date: "", time: "" };
-
   if (isAllDay) {
-    return {
-      date: `${pad2(date.getUTCDate())}/${pad2(date.getUTCMonth() + 1)}/${date.getUTCFullYear()}`,
-      time: "",
-    };
+    return { date: formatItalianDateInput(value), time: "" };
   }
 
-  return {
-    date: `${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`,
-    time: `${pad2(date.getHours())}:${pad2(date.getMinutes())}`,
-  };
+  return formatItalianDateTimeInput(value);
 }
 
-/**
- * Parses the strict Italian input format `gg/mm/aaaa` and optional `HH:mm`.
- *
- * An empty time produces an all-day event stored at UTC midnight. Impossible
- * dates such as 31/02/2026 and invalid 24-hour times such as 25:00 return
- * `null`.
- */
-export function parseEventDateTime(
-  dateValue: string,
-  timeValue: string,
-): ParsedEventDateTime | null {
-  const dateMatch = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(dateValue.trim());
+export {
+  maskItalianDateInput,
+  maskItalianTimeInput,
+  parseItalianDateTime as parseEventDateTime,
+} from "./italian-date";
 
-  if (!dateMatch) return null;
-
-  const day = Number(dateMatch[1]);
-  const month = Number(dateMatch[2]);
-  const year = Number(dateMatch[3]);
-  const trimmedTime = timeValue.trim();
-
-  if (!trimmedTime) {
-    const date = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-
-    if (
-      date.getUTCFullYear() !== year ||
-      date.getUTCMonth() !== month - 1 ||
-      date.getUTCDate() !== day
-    ) {
-      return null;
-    }
-
-    return { date, isAllDay: true };
-  }
-
-  const timeMatch = /^(\d{2}):(\d{2})$/.exec(trimmedTime);
-
-  if (!timeMatch) return null;
-
-  const hours = Number(timeMatch[1]);
-  const minutes = Number(timeMatch[2]);
-
-  if (hours > 23 || minutes > 59) return null;
-
-  const date = new Date(year, month - 1, day, hours, minutes, 0, 0);
-
-  if (
-    date.getFullYear() !== year ||
-    date.getMonth() !== month - 1 ||
-    date.getDate() !== day ||
-    date.getHours() !== hours ||
-    date.getMinutes() !== minutes
-  ) {
-    return null;
-  }
-
-  return { date, isAllDay: false };
-}
-
-/** Keeps typed/pasted dates in the visible `gg/mm/aaaa` shape. */
-export function maskItalianDateInput(value: string): string {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) {
-    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
-  }
-
-  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-}
-
-/** Keeps typed/pasted times in the visible 24-hour `HH:mm` shape. */
-export function maskItalianTimeInput(value: string): string {
-  const digits = value.replace(/\D/g, "").slice(0, 4);
-
-  if (digits.length <= 2) return digits;
-  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
-}
+export type { ItalianDateTimeInput };
 
 function eventTimestamp(event: EventRecord): number {
   const timestamp = new Date(event.event_date).getTime();

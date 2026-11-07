@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import { PasswordUpdateForm } from "@/components/password-update-form";
 import {
   getCredentialsProvider,
+  isValidEmail,
   updateEmail,
 } from "@/lib/auth-actions";
 import {
@@ -18,8 +19,6 @@ import {
 type SecurityCredentialsProps = {
   user: User;
 };
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const inputClass =
   "w-full rounded-xl border border-zinc-300 bg-white py-2.5 pl-10 pr-3 text-sm text-zinc-900 placeholder:text-zinc-400 transition focus:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-600/20 disabled:cursor-not-allowed disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:placeholder:text-zinc-500";
@@ -48,7 +47,7 @@ export function SecurityCredentials({ user }: SecurityCredentialsProps) {
       return;
     }
 
-    if (!EMAIL_PATTERN.test(cleanEmail)) {
+    if (!isValidEmail(cleanEmail)) {
       setEmailError("Inserisci un indirizzo email valido.");
       return;
     }
@@ -152,7 +151,7 @@ export function SecurityCredentials({ user }: SecurityCredentialsProps) {
               . Ti invieremo un link di conferma prima di applicare la modifica.
             </p>
 
-            <form className="mt-4 space-y-4" onSubmit={handleEmailSubmit}>
+            <form className="mt-4 space-y-4" noValidate onSubmit={handleEmailSubmit}>
               <div>
                 <label className={labelClass} htmlFor={emailId}>
                   Nuovo indirizzo email

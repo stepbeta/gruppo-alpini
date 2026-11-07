@@ -366,7 +366,7 @@ export function EventDialog({
           aria-describedby={descriptionId}
           aria-labelledby={titleId}
           aria-modal="true"
-          className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6 dark:bg-zinc-900"
+          className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6 dark:bg-zinc-900"
           onKeyDown={handleDialogKeyDown}
           ref={dialogRef}
           role="dialog"
@@ -401,7 +401,7 @@ export function EventDialog({
             </button>
           </div>
 
-          <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+          <form className="mt-6 space-y-5" noValidate onSubmit={handleSubmit}>
             {!isEdit ? (
               <section
                 aria-labelledby={`${fieldId}-template-heading`}

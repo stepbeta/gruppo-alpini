@@ -44,9 +44,11 @@ The important architectural fact is that **the Next.js server is not the primary
 | `components/` | Shared UI and access gates: `AuthProvider`, `AuthGuard`, `SessionGuard`, `ThemeProvider`, theme toggle, `PrivacyConsentGate`, `ApprovalGate`, header/footer, dialogs, forms, pagination, banner, configuration notice[cite: 9]. |
 | `app/faq/` | Static Italian member help hub with deep links to member features; gated by session only so it remains available on consent and approval holding screens[cite: 9]. |
 | `lib/` | Domain and data-access helpers: profiles, events, event templates, requests, announcements, consent, exports, auth actions, redirects, privacy metadata, pagination, theme mode helpers, display helpers, and the browser Supabase singleton[cite: 9]. |
-| `lib/events.ts` | Event/RSVP types, date parsing/formatting, pagination filters, and CRUD helpers[cite: 9]. |
+| `lib/events.ts` | Event/RSVP types, pagination filters, and CRUD helpers; re-exports shared Italian date/time helpers[cite: 9]. |
+| `lib/italian-date.ts` | Shared masked Italian date/time input helpers: `gg/mm/aaaa` and `HH:mm` masking, strict parsing, ISO conversion, and Italian formatting used by events, announcements, birth-date forms, and templates[cite: 9]. |
 | `lib/event-templates.ts` | Event-template types, validation, time normalization, CRUD helpers, and conversion of an existing event into template input[cite: 9]. |
-| `lib/events.test.ts` | The current Vitest suite for event date parsing, masking, formatting, and event deep-link helpers[cite: 9]. |
+| `lib/events.test.ts` | The current Vitest suite for event date parsing, formatting, and event deep-link helpers[cite: 9]. |
+| `lib/italian-date.test.ts` | Vitest coverage for shared date/time masking, strict parsing, ISO conversion, and Italian formatting[cite: 9]. |
 | `lib/event-templates.test.ts` | Vitest coverage for template time normalization, event-to-template conversion, validation, and error messages[cite: 9]. |
 | `lib/supabase-admin.ts` | Server-only factory for a service-role Supabase client. It is imported only by the account-deletion route[cite: 9]. |
 | `supabase/migrations/` | Ordered SQL migrations. These define the real security boundary[cite: 9]. |

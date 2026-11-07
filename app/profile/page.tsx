@@ -42,6 +42,11 @@ import {
   fetchUserDataExport,
   type ExportFormat,
 } from "@/lib/data-export";
+import {
+  formatItalianDateInput,
+  maskItalianDateInput,
+  parseItalianDateToIsoDate,
+} from "@/lib/italian-date";
 import { supabase } from "@/lib/supabase";
 import {
   AlertCircleIcon,
@@ -77,7 +82,7 @@ function formValuesFromProfile(profile: Profile | null, fallbackName: string): F
 
   return {
     full_name: profile.full_name ?? fallbackName,
-    birth_date: profile.birth_date ?? "",
+    birth_date: formatItalianDateInput(profile.birth_date),
     enlistment_year:
       profile.enlistment_year === null ? "" : String(profile.enlistment_year),
     service_place: profile.service_place ?? "",
@@ -182,6 +187,20 @@ function ProfileContent() {
       return;
     }
 
+    let birthDate: string | null = null;
+    const birthDateText = values.birth_date.trim();
+
+    if (birthDateText) {
+      birthDate = parseItalianDateToIsoDate(birthDateText);
+
+      if (!birthDate) {
+        setSaveError(
+          "Inserisci una data di nascita valida nel formato gg/mm/aaaa (es. 14/03/1985), oppure lascia il campo vuoto.",
+        );
+        return;
+      }
+    }
+
     let enlistmentYear: number | null = null;
     const yearText = values.enlistment_year.trim();
 
@@ -207,7 +226,7 @@ function ProfileContent() {
 
     const { profile: nextProfile, error } = await saveProfile(userId, {
       full_name: fullName,
-      birth_date: values.birth_date || null,
+      birth_date: birthDate,
       enlistment_year: enlistmentYear,
       service_place: values.service_place.trim() || null,
     });
@@ -281,7 +300,7 @@ function ProfileContent() {
           href="/"
         >
           <ArrowRightIcon className="h-4 w-4 rotate-180" />
-          Torna alla home
+          Torna alla pagina iniziale
         </Link>
 
         <section className="mt-4 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8 dark:border-zinc-800 dark:bg-zinc-900">
@@ -376,7 +395,7 @@ function ProfileContent() {
                 </div>
               ) : null}
 
-              <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+              <form className="mt-6 space-y-5" noValidate onSubmit={handleSubmit}>
                 <div>
                   <label
                     className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
@@ -415,17 +434,25 @@ function ProfileContent() {
                       className={inputClass}
                       disabled={isSaving}
                       id="birth_date"
+                      inputMode="numeric"
+                      maxLength={10}
                       name="birth_date"
-                      onChange={(event) => updateField("birth_date", event.target.value)}
-                      type="date"
+                      onChange={(event) =>
+                        updateField(
+                          "birth_date",
+                          maskItalianDateInput(event.target.value),
+                        )
+                      }
+                      placeholder="gg/mm/aaaa"
+                      type="text"
                       value={values.birth_date}
                     />
                     <p
                       className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
                       id="birth_date_hint"
                     >
-                      Formato gg/mm/aaaa. Puoi lasciare vuoto se non vuoi
-                      indicarla.
+                      Formato gg/mm/aaaa, ad esempio 14/03/1985. Puoi lasciare
+                      vuoto se non vuoi indicarla.
                     </p>
                   </div>
 

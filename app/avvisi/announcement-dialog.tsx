@@ -10,13 +10,17 @@ import {
 } from "react";
 import {
   createAnnouncement,
+  formatAnnouncementDateTimeInput,
   formatAnnouncementError,
-  parseDateTimeLocalValue,
-  toDateTimeLocalValue,
+  parseAnnouncementDateTime,
   updateAnnouncement,
   type Announcement,
   type AnnouncementInput,
 } from "@/lib/announcements";
+import {
+  maskItalianDateInput,
+  maskItalianTimeInput,
+} from "@/lib/italian-date";
 import { AlertCircleIcon, MegaphoneIcon, XIcon } from "@/components/icons";
 
 type AnnouncementDialogProps = {
@@ -29,14 +33,18 @@ type AnnouncementDialogProps = {
 type FormValues = {
   message: string;
   startDate: string;
+  startTime: string;
   endDate: string;
+  endTime: string;
   isActive: boolean;
 };
 
 const EMPTY_FORM: FormValues = {
   message: "",
   startDate: "",
+  startTime: "",
   endDate: "",
+  endTime: "",
   isActive: true,
 };
 
@@ -46,10 +54,15 @@ const inputClass =
 function initialValues(announcement?: Announcement): FormValues {
   if (!announcement) return EMPTY_FORM;
 
+  const start = formatAnnouncementDateTimeInput(announcement.start_date);
+  const end = formatAnnouncementDateTimeInput(announcement.end_date);
+
   return {
     message: announcement.message,
-    startDate: toDateTimeLocalValue(announcement.start_date),
-    endDate: toDateTimeLocalValue(announcement.end_date),
+    startDate: start.date,
+    startTime: start.time,
+    endDate: end.date,
+    endTime: end.time,
     isActive: announcement.is_active,
   };
 }
@@ -132,11 +145,16 @@ export function AnnouncementDialog({
       return;
     }
 
-    const start = parseDateTimeLocalValue(values.startDate);
-    const end = parseDateTimeLocalValue(values.endDate);
+    const start = parseAnnouncementDateTime(
+      values.startDate,
+      values.startTime,
+    );
+    const end = parseAnnouncementDateTime(values.endDate, values.endTime);
 
     if (!start.isValid || !end.isValid) {
-      setError("Inserisci date valide oppure lascia vuoti i campi.");
+      setError(
+        "Inserisci date e orari validi nel formato gg/mm/aaaa e HH:mm (24 ore). Per ogni limite compila sia la data sia l’ora, oppure lascia vuoti entrambi i campi.",
+      );
       return;
     }
 
@@ -201,7 +219,7 @@ export function AnnouncementDialog({
         aria-describedby={descriptionId}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6 dark:bg-zinc-900"
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6 dark:bg-zinc-900"
         onKeyDown={handleDialogKeyDown}
         ref={dialogRef}
         role="dialog"
@@ -239,7 +257,7 @@ export function AnnouncementDialog({
           </button>
         </div>
 
-        <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+        <form className="mt-6 space-y-5" noValidate onSubmit={handleSubmit}>
           <div>
             <label
               className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
@@ -268,56 +286,142 @@ export function AnnouncementDialog({
 
           <div className="grid gap-5 sm:grid-cols-2">
             <div>
-              <label
-                className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-                htmlFor={`${fieldId}-start`}
-              >
+              <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 Inizio
                 <span className="ml-2 text-xs font-normal text-zinc-400 dark:text-zinc-500">
                   facoltativo
                 </span>
-              </label>
-              <input
-                className={`${inputClass} [color-scheme:light] dark:[color-scheme:dark]`}
-                disabled={isSaving}
-                id={`${fieldId}-start`}
-                name="start_date"
-                onChange={(changeEvent) =>
-                  updateField("startDate", changeEvent.target.value)
-                }
-                type="datetime-local"
-                value={values.startDate}
-              />
+              </p>
+              <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
+                <div>
+                  <label
+                    className="mb-1.5 block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                    htmlFor={`${fieldId}-start-date`}
+                  >
+                    Data
+                  </label>
+                  <input
+                    autoComplete="off"
+                    className={inputClass}
+                    disabled={isSaving}
+                    id={`${fieldId}-start-date`}
+                    inputMode="numeric"
+                    maxLength={10}
+                    name="start_date"
+                    onChange={(changeEvent) =>
+                      updateField(
+                        "startDate",
+                        maskItalianDateInput(changeEvent.target.value),
+                      )
+                    }
+                    placeholder="gg/mm/aaaa"
+                    type="text"
+                    value={values.startDate}
+                  />
+                </div>
+                <div>
+                  <label
+                    className="mb-1.5 block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                    htmlFor={`${fieldId}-start-time`}
+                  >
+                    Ora
+                  </label>
+                  <input
+                    autoComplete="off"
+                    className={inputClass}
+                    disabled={isSaving}
+                    id={`${fieldId}-start-time`}
+                    inputMode="numeric"
+                    maxLength={5}
+                    name="start_time"
+                    onChange={(changeEvent) =>
+                      updateField(
+                        "startTime",
+                        maskItalianTimeInput(changeEvent.target.value),
+                      )
+                    }
+                    placeholder="HH:mm"
+                    type="text"
+                    value={values.startTime}
+                  />
+                </div>
+              </div>
+              <p className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                Formato gg/mm/aaaa e HH:mm (24 ore).
+              </p>
             </div>
 
             <div>
-              <label
-                className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
-                htmlFor={`${fieldId}-end`}
-              >
+              <p className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 Fine
                 <span className="ml-2 text-xs font-normal text-zinc-400 dark:text-zinc-500">
                   facoltativa
                 </span>
-              </label>
-              <input
-                className={`${inputClass} [color-scheme:light] dark:[color-scheme:dark]`}
-                disabled={isSaving}
-                id={`${fieldId}-end`}
-                name="end_date"
-                onChange={(changeEvent) =>
-                  updateField("endDate", changeEvent.target.value)
-                }
-                type="datetime-local"
-                value={values.endDate}
-              />
+              </p>
+              <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-3">
+                <div>
+                  <label
+                    className="mb-1.5 block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                    htmlFor={`${fieldId}-end-date`}
+                  >
+                    Data
+                  </label>
+                  <input
+                    autoComplete="off"
+                    className={inputClass}
+                    disabled={isSaving}
+                    id={`${fieldId}-end-date`}
+                    inputMode="numeric"
+                    maxLength={10}
+                    name="end_date"
+                    onChange={(changeEvent) =>
+                      updateField(
+                        "endDate",
+                        maskItalianDateInput(changeEvent.target.value),
+                      )
+                    }
+                    placeholder="gg/mm/aaaa"
+                    type="text"
+                    value={values.endDate}
+                  />
+                </div>
+                <div>
+                  <label
+                    className="mb-1.5 block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                    htmlFor={`${fieldId}-end-time`}
+                  >
+                    Ora
+                  </label>
+                  <input
+                    autoComplete="off"
+                    className={inputClass}
+                    disabled={isSaving}
+                    id={`${fieldId}-end-time`}
+                    inputMode="numeric"
+                    maxLength={5}
+                    name="end_time"
+                    onChange={(changeEvent) =>
+                      updateField(
+                        "endTime",
+                        maskItalianTimeInput(changeEvent.target.value),
+                      )
+                    }
+                    placeholder="HH:mm"
+                    type="text"
+                    value={values.endTime}
+                  />
+                </div>
+              </div>
+              <p className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+                Formato gg/mm/aaaa e HH:mm (24 ore).
+              </p>
             </div>
           </div>
 
           <p className="text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-            Se non indichi date, l’avviso resta visibile finché non lo disattivi
-            o elimini. Se indichi solo l’inizio, resta visibile da quel momento
-            in poi.
+            Se lasci vuoti data e ora, l’avviso resta visibile finché non lo
+            disattivi o elimini. Se indichi solo l’inizio, resta visibile da quel
+            momento in poi.
           </p>
 
           <label

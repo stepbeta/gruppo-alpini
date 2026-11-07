@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   formatAnnouncementDate,
+  formatAnnouncementDateTimeInput,
   formatAnnouncementWindow,
   getAnnouncementState,
   getAnnouncementWindowState,
   isAnnouncementVisible,
   matchesAnnouncementFilter,
-  parseDateTimeLocalValue,
-  toDateTimeLocalValue,
+  parseAnnouncementDateTime,
   type Announcement,
 } from "./announcements";
 
@@ -249,25 +249,64 @@ describe("formatAnnouncementWindow", () => {
   });
 });
 
-describe("datetime-local conversion", () => {
-  it("round-trips a valid local value", () => {
-    const parsed = parseDateTimeLocalValue("2026-11-05T18:30");
+describe("announcement date/time inputs", () => {
+  it("prefills the masked date and time fields from a timestamp", () => {
+    const iso = new Date(2026, 10, 5, 18, 30).toISOString();
+
+    expect(formatAnnouncementDateTimeInput(iso)).toEqual({
+      date: "05/11/2026",
+      time: "18:30",
+    });
+  });
+
+  it("returns empty fields for empty and malformed values", () => {
+    expect(formatAnnouncementDateTimeInput(null)).toEqual({
+      date: "",
+      time: "",
+    });
+    expect(formatAnnouncementDateTimeInput("not-a-date")).toEqual({
+      date: "",
+      time: "",
+    });
+  });
+
+  it("converts masked fields to an ISO timestamp in local time", () => {
+    const parsed = parseAnnouncementDateTime("05/11/2026", "18:30");
 
     expect(parsed.isValid).toBe(true);
-    expect(parsed.iso).not.toBeNull();
-    expect(toDateTimeLocalValue(parsed.iso)).toBe("2026-11-05T18:30");
+    expect(parsed.iso).toBe(new Date(2026, 10, 5, 18, 30).toISOString());
   });
 
-  it("treats an empty value as no limit", () => {
-    expect(parseDateTimeLocalValue("   ")).toEqual({ iso: null, isValid: true });
-    expect(toDateTimeLocalValue(null)).toBe("");
+  it("treats empty date and time as no limit", () => {
+    expect(parseAnnouncementDateTime("", "")).toEqual({
+      iso: null,
+      isValid: true,
+    });
+    expect(parseAnnouncementDateTime("   ", "   ")).toEqual({
+      iso: null,
+      isValid: true,
+    });
   });
 
-  it("rejects malformed values and timestamps", () => {
-    expect(parseDateTimeLocalValue("not-a-date")).toEqual({
+  it("requires both fields when a boundary is set", () => {
+    expect(parseAnnouncementDateTime("05/11/2026", "")).toEqual({
       iso: null,
       isValid: false,
     });
-    expect(toDateTimeLocalValue("not-a-date")).toBe("");
+    expect(parseAnnouncementDateTime("", "18:30")).toEqual({
+      iso: null,
+      isValid: false,
+    });
+  });
+
+  it("rejects impossible dates and out-of-range times", () => {
+    expect(parseAnnouncementDateTime("31/02/2026", "18:30")).toEqual({
+      iso: null,
+      isValid: false,
+    });
+    expect(parseAnnouncementDateTime("05/11/2026", "25:00")).toEqual({
+      iso: null,
+      isValid: false,
+    });
   });
 });

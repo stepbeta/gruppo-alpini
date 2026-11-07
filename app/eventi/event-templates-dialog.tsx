@@ -19,7 +19,7 @@ import {
   type EventTemplate,
   type EventTemplateInput,
 } from "@/lib/event-templates";
-import { maskItalianTimeInput } from "@/lib/events";
+import { maskItalianTimeInput } from "@/lib/italian-date";
 import {
   AlertCircleIcon,
   CalendarIcon,
@@ -190,6 +190,7 @@ function TemplateForm({
   return (
     <form
       className="rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4 dark:border-emerald-900 dark:bg-emerald-950/20"
+      noValidate
       onSubmit={handleSubmit}
     >
       <div className="flex items-start justify-between gap-3">

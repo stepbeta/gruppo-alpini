@@ -7,7 +7,7 @@ import { AuthScreen } from "@/components/auth-screen";
 import { ConfigurationNotice } from "@/components/configuration-notice";
 import { LoadingScreen } from "@/components/loading-screen";
 import { useAuth } from "@/components/auth-provider";
-import { requestPasswordReset } from "@/lib/auth-actions";
+import { requestPasswordReset, isValidEmail } from "@/lib/auth-actions";
 import {
   AlertCircleIcon,
   ArrowRightIcon,
@@ -52,6 +52,11 @@ export default function ForgotPasswordPage() {
       return;
     }
 
+    if (!isValidEmail(cleanEmail)) {
+      setError("Inserisci un indirizzo email valido, ad esempio nome@esempio.it.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const { error: resetError } = await requestPasswordReset(
@@ -77,7 +82,7 @@ export default function ForgotPasswordPage() {
       title="Recupera la password"
     >
       <div className="mt-8 rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl shadow-zinc-900/5 sm:p-8 dark:border-zinc-800 dark:bg-zinc-900 dark:shadow-black/20">
-        <form className="space-y-4" onSubmit={handleSubmit}>
+        <form className="space-y-4" noValidate onSubmit={handleSubmit}>
           <div>
             <label
               className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"

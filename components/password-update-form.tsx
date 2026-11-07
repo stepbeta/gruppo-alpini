@@ -78,7 +78,7 @@ export function PasswordUpdateForm({
   }
 
   return (
-    <form className="space-y-5" onSubmit={handleSubmit}>
+    <form className="space-y-5" noValidate onSubmit={handleSubmit}>
       <div>
         <label className={labelClass} htmlFor={passwordId}>
           Nuova password

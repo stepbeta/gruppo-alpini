@@ -75,7 +75,7 @@ const ATTENDANCE_TONES = {
   },
 } as const;
 
-const collator = new Intl.Collator("it", { sensitivity: "base" });
+const collator = new Intl.Collator("it-IT", { sensitivity: "base" });
 
 type ShareState = "idle" | "copied" | "error";
 

@@ -70,7 +70,7 @@ export default async function PrivacyPage() {
       <header className="border-b border-zinc-200/80 bg-white/85 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/85">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-3 sm:px-6">
           <Link
-            aria-label="Torna alla home"
+            aria-label="Torna alla pagina iniziale"
             className="rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-600"
             href="/"
           >

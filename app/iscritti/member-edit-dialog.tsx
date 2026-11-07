@@ -36,6 +36,11 @@ import {
   type ExportFormat,
 } from "@/lib/data-export";
 import {
+  formatItalianDateInput,
+  maskItalianDateInput,
+  parseItalianDateToIsoDate,
+} from "@/lib/italian-date";
+import {
   AlertCircleIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -117,7 +122,7 @@ const APPROVAL_TONES: Record<
 function formValuesFromMember(member: Member): FormValues {
   return {
     full_name: member.full_name ?? "",
-    birth_date: member.birth_date ?? "",
+    birth_date: formatItalianDateInput(member.birth_date),
     enlistment_year:
       member.enlistment_year === null ? "" : String(member.enlistment_year),
     service_place: member.service_place ?? "",
@@ -209,6 +214,20 @@ export function MemberEditDialog({
       return;
     }
 
+    let birthDate: string | null = null;
+    const birthDateText = values.birth_date.trim();
+
+    if (birthDateText) {
+      birthDate = parseItalianDateToIsoDate(birthDateText);
+
+      if (!birthDate) {
+        setError(
+          "Inserisci una data di nascita valida nel formato gg/mm/aaaa (es. 14/03/1985), oppure lascia il campo vuoto.",
+        );
+        return;
+      }
+    }
+
     let enlistmentYear: number | null = null;
     const yearText = values.enlistment_year.trim();
 
@@ -235,7 +254,7 @@ export function MemberEditDialog({
     const { member: updatedMember, error: updateError } =
       await updateMemberProfile(member.id, {
         full_name: fullName,
-        birth_date: values.birth_date || null,
+        birth_date: birthDate,
         enlistment_year: enlistmentYear,
         service_place: values.service_place.trim() || null,
       });
@@ -313,7 +332,7 @@ export function MemberEditDialog({
         aria-describedby={descriptionId}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6 dark:bg-zinc-900"
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-5 shadow-2xl sm:rounded-3xl sm:p-6 dark:bg-zinc-900"
         onKeyDown={handleDialogKeyDown}
         ref={dialogRef}
         role="dialog"
@@ -446,7 +465,7 @@ export function MemberEditDialog({
           </div>
         </div>
 
-        <form className="mt-6 space-y-5" onSubmit={handleSubmit}>
+        <form className="mt-6 space-y-5" noValidate onSubmit={handleSubmit}>
           <div>
             <label
               className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
@@ -486,18 +505,25 @@ export function MemberEditDialog({
                 className={inputClass}
                 disabled={isSaving}
                 id={`${fieldId}-birth-date`}
+                inputMode="numeric"
+                maxLength={10}
                 name="birth_date"
                 onChange={(event) =>
-                  updateField("birth_date", event.target.value)
+                  updateField(
+                    "birth_date",
+                    maskItalianDateInput(event.target.value),
+                  )
                 }
-                type="date"
+                placeholder="gg/mm/aaaa"
+                type="text"
                 value={values.birth_date}
               />
               <p
                 className="mt-1.5 text-xs leading-5 text-zinc-500 dark:text-zinc-400"
                 id={`${fieldId}-birth-date-hint`}
               >
-                Formato gg/mm/aaaa. Puoi lasciare vuoto se non vuoi indicarla.
+                Formato gg/mm/aaaa. Esempio: 14/03/1985. Puoi lasciare vuoto se
+                non vuoi indicarla.
               </p>
             </div>
 

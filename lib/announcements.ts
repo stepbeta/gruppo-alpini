@@ -1,3 +1,8 @@
+import {
+  formatItalianDateTimeInput,
+  parseOptionalItalianDateTime,
+  type ItalianDateTimeInput,
+} from "./italian-date";
 import { supabase } from "./supabase";
 
 export type Announcement = {
@@ -200,39 +205,29 @@ export function formatAnnouncementWindow(
   return `Fino al ${formatAnnouncementDate(announcement.end_date)}`;
 }
 
-function pad2(value: number): string {
-  return String(value).padStart(2, "0");
-}
-
-/** Converts an ISO timestamp to the value expected by `<input type="datetime-local">`. */
-export function toDateTimeLocalValue(value: string | null): string {
-  if (!value) return "";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-
-  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(
-    date.getDate(),
-  )}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+/** Prefills the masked start/end fields when editing an announcement. */
+export function formatAnnouncementDateTimeInput(
+  value: string | null,
+): ItalianDateTimeInput {
+  return formatItalianDateTimeInput(value);
 }
 
 /**
- * Converts a `<input type="datetime-local">` value into an ISO timestamp.
- * An empty value is valid and means “no limit”.
+ * Converts a masked `gg/mm/aaaa` date and `HH:mm` time into an ISO timestamp.
+ *
+ * Both fields are required when a limit is set, matching the previous
+ * date-and-time control. Empty date and time together mean “no limit”.
  */
-export function parseDateTimeLocalValue(value: string): {
-  iso: string | null;
-  isValid: boolean;
-} {
-  const trimmed = value.trim();
-  if (!trimmed) return { iso: null, isValid: true };
+export function parseAnnouncementDateTime(
+  dateValue: string,
+  timeValue: string,
+): { iso: string | null; isValid: boolean } {
+  const parsed = parseOptionalItalianDateTime(dateValue, timeValue);
 
-  const date = new Date(trimmed);
-  if (Number.isNaN(date.getTime())) {
-    return { iso: null, isValid: false };
-  }
-
-  return { iso: date.toISOString(), isValid: true };
+  return {
+    iso: parsed.date ? parsed.date.toISOString() : null,
+    isValid: parsed.isValid,
+  };
 }
 
 /** Reads every banner visible to the signed-in user (administrators see all). */

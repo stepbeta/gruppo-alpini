@@ -555,7 +555,7 @@ export function RequestsPage() {
                   La segreteria la riceverà e potrà aggiornarne lo stato.
                 </p>
 
-                <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+                <form className="mt-5 space-y-4" noValidate onSubmit={handleSubmit}>
                   <div>
                     <label
                       className="mb-1.5 block text-sm font-medium text-zinc-700 dark:text-zinc-300"

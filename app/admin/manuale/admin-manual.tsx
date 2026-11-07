@@ -47,7 +47,7 @@ import {
 } from "@/components/icons";
 
 /** Update this date whenever the manual changes. */
-const MANUAL_LAST_UPDATED = "5 novembre 2026";
+const MANUAL_LAST_UPDATED = "7 novembre 2026";
 
 type ManualIcon = ComponentType<{ className?: string }>;
 
@@ -156,7 +156,7 @@ const ROLES: Array<{
     name: "Socio approvato",
     label: "Attivo",
     description:
-      "Usa home, elenco iscritti, eventi e adesioni, richieste alla segreteria e profilo personale.",
+      "Usa pagina iniziale, elenco iscritti, eventi e adesioni, richieste alla segreteria e profilo personale.",
     tone: "success",
   },
   {
@@ -384,7 +384,7 @@ export function AdminManual() {
               className="mt-5 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:bg-emerald-600 dark:hover:bg-emerald-500"
               href="/"
             >
-              Torna alla home
+              Torna alla pagina iniziale
               <ArrowRightIcon className="h-4 w-4" />
             </Link>
           </section>
@@ -614,7 +614,9 @@ export function AdminManual() {
               <SectionHeading>Correggere i dati di un socio</SectionHeading>
               <p className="mt-2">
                 Dalla scheda di modifica puoi aggiornare nome e cognome, data di
-                nascita, anno di leva e luogo di servizio. Premi{" "}
+                nascita, anno di leva e luogo di servizio. Inserisci la data di
+                nascita nel formato <strong>gg/mm/aaaa</strong>, ad esempio
+                14/03/1985, oppure lascia il campo vuoto. Premi{" "}
                 <strong>Salva modifiche</strong> per confermare. La modifica dei
                 dati anagrafici è separata dall’approvazione dell’account.
               </p>
@@ -682,7 +684,7 @@ export function AdminManual() {
               <ol className="mt-3 list-decimal space-y-2 pl-5">
                 <li>Apri <strong>Eventi</strong> e premi <strong>Nuovo evento</strong>.</li>
                 <li>Inserisci il titolo, obbligatorio.</li>
-                <li>Inserisci la data nel formato <strong>gg/mm/aaaa</strong>, ad esempio 25/12/2026.</li>
+                <li>Inserisci la data nel formato <strong>gg/mm/aaaa</strong>, ad esempio 25/12/2026: il campo aggiunge le barre mentre digiti.</li>
                 <li>
                   Se l’evento ha un orario, inseriscilo nel formato{" "}
                   <strong>HH:mm</strong> (24 ore), ad esempio 19:00. Se lo lasci
@@ -808,13 +810,16 @@ export function AdminManual() {
               <ol className="mt-3 list-decimal space-y-2 pl-5">
                 <li>
                   Apri <strong>Avvisi</strong>: trovi il collegamento nella
-                  scheda “Avvisi del portale” della home.
+                  scheda “Avvisi del portale” della pagina iniziale.
                 </li>
                 <li>Premi <strong>Nuovo avviso</strong>.</li>
                 <li>Scrivi il testo del messaggio.</li>
                 <li>
-                  Se serve, imposta una data e un’ora di inizio e di fine. Se
-                  lasci i campi vuoti, l’avviso non ha limiti di tempo.
+                  Se serve, imposta una data e un’ora di inizio e di fine. Usa{" "}
+                  <strong>gg/mm/aaaa</strong> per la data e <strong>HH:mm</strong>{" "}
+                  (24 ore) per l’ora. Se imposti un limite devi compilare sia la
+                  data sia l’ora; se lasci vuoti entrambi i campi, l’avviso non
+                  ha limiti di tempo.
                 </li>
                 <li>
                   Lascia attiva l’opzione <strong>Avviso attivo</strong> per
@@ -840,9 +845,9 @@ export function AdminManual() {
                 ]}
               />
               <p className="mt-2">
-                Ogni scheda riporta la data di creazione e, separatamente, le
-                date di inizio e fine della pubblicazione. Se una data manca,
-                l’avviso non ha quel limite.
+                Ogni scheda riporta la data di creazione e, separatamente, la
+                data e l’ora di inizio e fine della pubblicazione. Se un limite
+                manca, l’avviso non ha quel vincolo.
               </p>
             </div>
 

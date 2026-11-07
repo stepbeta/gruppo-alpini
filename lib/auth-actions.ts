@@ -13,6 +13,11 @@ type AuthErrorDetails = {
 export const RECOVERY_LINK_ERROR =
   "Il link di recupero non è valido, è scaduto o è già stato utilizzato. Richiedi un nuovo link.";
 
+/** Shared email shape check used by the login, recovery and profile forms. */
+export function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 const NETWORK_ERROR =
   "Errore di rete. Controlla la connessione e riprova.";
 
