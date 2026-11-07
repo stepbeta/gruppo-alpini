@@ -68,7 +68,7 @@ function templateTimeLabel(template: EventTemplate): string {
 
 function sortTemplates(templates: EventTemplate[]): EventTemplate[] {
   return [...templates].sort((first, second) =>
-    first.title.localeCompare(second.title, "it", { sensitivity: "base" }),
+    first.title.localeCompare(second.title, "it-IT", { sensitivity: "base" }),
   );
 }
 
