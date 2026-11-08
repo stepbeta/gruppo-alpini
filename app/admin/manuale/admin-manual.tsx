@@ -47,7 +47,7 @@ import {
 } from "@/components/icons";
 
 /** Update this date whenever the manual changes. */
-const MANUAL_LAST_UPDATED = "7 novembre 2026";
+const MANUAL_LAST_UPDATED = "8 novembre 2026";
 
 type ManualIcon = ComponentType<{ className?: string }>;
 
@@ -507,6 +507,23 @@ export function AdminManual() {
             </p>
 
             <div>
+              <SectionHeading>Come muoversi nel portale</SectionHeading>
+              <p className="mt-2">
+                Il logo in alto a sinistra riporta alla pagina iniziale. Nel menu
+                orizzontale trovi <strong>Eventi</strong>,{" "}
+                <strong>Iscritti</strong> e <strong>Richieste</strong>; per gli
+                amministratori compare anche il gruppo{" "}
+                <strong>Amministrazione</strong> con <strong>Avvisi</strong> e{" "}
+                <strong>Manuale</strong>. Il cerchio con le iniziali in alto a
+                destra apre il menu con <strong>Profilo</strong> ed{" "}
+                <strong>Esci</strong>. Su schermi stretti il pulsante con le tre
+                linee apre lo stesso menu a scomparsa, diviso in{" "}
+                <strong>Area soci</strong> e, se sei amministratore,{" "}
+                <strong>Amministrazione</strong>.
+              </p>
+            </div>
+
+            <div>
               <SectionHeading>I ruoli del portale</SectionHeading>
               <div className="mt-3 grid gap-3 sm:grid-cols-2">
                 {ROLES.map((role) => (
@@ -586,7 +603,10 @@ export function AdminManual() {
             <div>
               <SectionHeading>Approvare o rifiutare una richiesta</SectionHeading>
               <ol className="mt-3 list-decimal space-y-2 pl-5">
-                <li>Apri <strong>Iscritti</strong> dal menu in alto.</li>
+                <li>
+                  Apri <strong>Iscritti</strong> dal menu in alto (o dal menu a
+                  scomparsa sugli schermi stretti).
+                </li>
                 <li>
                   Usa il filtro <strong>In attesa</strong> oppure il contatore
                   delle richieste da esaminare.
@@ -809,8 +829,10 @@ export function AdminManual() {
               <SectionHeading>Creare un avviso</SectionHeading>
               <ol className="mt-3 list-decimal space-y-2 pl-5">
                 <li>
-                  Apri <strong>Avvisi</strong>: trovi il collegamento nella
-                  scheda “Avvisi del portale” della pagina iniziale.
+                  Apri <strong>Avvisi</strong>: trovi il collegamento nel gruppo{" "}
+                  <strong>Amministrazione</strong> del menu in alto, accanto a{" "}
+                  <strong>Manuale</strong>, oppure nella scheda “Avvisi del
+                  portale” della pagina iniziale.
                 </li>
                 <li>Premi <strong>Nuovo avviso</strong>.</li>
                 <li>Scrivi il testo del messaggio.</li>
@@ -905,11 +927,14 @@ export function AdminManual() {
             <div>
               <SectionHeading>Esportare i dati</SectionHeading>
               <p className="mt-2">
-                Ogni socio può scaricare i propri dati dal profilo. Gli
-                amministratori possono esportare i dati di un altro socio dalla
-                scheda di modifica in <strong>Iscritti</strong>. L’esportazione
-                contiene scheda personale, email, risposte agli eventi, richieste
-                e storico dei consensi, nei formati JSON, testo e HTML.
+                Ogni socio può scaricare i propri dati dal profilo: apri il menu
+                del cerchio con le iniziali in alto a destra e scegli{" "}
+                <strong>Profilo</strong>, oppure usa <strong>Area soci</strong>{" "}
+                nel menu a scomparsa sugli schermi stretti. Gli amministratori
+                possono esportare i dati di un altro socio dalla scheda di
+                modifica in <strong>Iscritti</strong>. L’esportazione contiene
+                scheda personale, email, risposte agli eventi, richieste e storico
+                dei consensi, nei formati JSON, testo e HTML.
               </p>
             </div>
 

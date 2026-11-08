@@ -35,6 +35,14 @@ export function MountainIcon({ className }: IconProps) {
   );
 }
 
+export function MenuIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </IconBase>
+  );
+}
+
 export function HomeIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>

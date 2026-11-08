@@ -50,10 +50,10 @@ There is also a machine role, `service_role`, used only by the server-side accou
 | **Member directory** | Approved-member directory, name/service-place search, server-side pagination, administrator pending filter, profile editing, approval badges, deletion | `/iscritti` |
 | **Events and RSVP** | Upcoming and past event lists with **Tutti** / **Prossimi** / **Passati** filter chips, search, pagination, Italian date/time input, all-day events, `Presente` / `In forse` / `Assente` responses, attendance totals and names for administrators, event CRUD, reusable event templates, shareable deep links | `/eventi` |
 | **Requests** | Personal request submission and history, secretariat board for administrators, status filtering, open/resolved counts, resolve/reopen actions | `/richieste` |
-| **Announcements** | Platform-wide banner, optional scheduling window, activation toggle, administrator CRUD, live refresh after changes | `/avvisi`, header banner |
-| **Profile and credentials** | Editable personal data, password and email management for email/password accounts, Google-account notice, data export, account deletion | `/profile` |
+| **Announcements** | Platform-wide banner, optional scheduling window, activation toggle, administrator CRUD, live refresh after changes; the management page is linked from the header's administrator-only group | `/avvisi`, header banner |
+| **Profile and credentials** | Editable personal data, password and email management for email/password accounts, Google-account notice, data export, account deletion; reachable from the header avatar menu or the mobile drawer | `/profile` |
 | **Privacy and data rights** | Public policy page, dynamic controller details, JSON/text/HTML export, account deletion and anonymization, consent history | `/privacy`, `/profile`, `/iscritti` |
-| **Administration** | Approval decisions, member maintenance, event management, request board, announcement management, cross-member export and deletion, in-app administrator manual | Admin controls embedded in the normal pages; `/admin/manuale` |
+| **Administration** | Approval decisions, member maintenance, event management, request board, announcement management, cross-member export and deletion, in-app administrator manual; `/avvisi` and `/admin/manuale` are grouped together in the header for administrators | Admin controls embedded in the normal pages; `/avvisi`, `/admin/manuale` |
 
 ### 1.4 End-to-end journeys
 

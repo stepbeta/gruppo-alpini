@@ -164,8 +164,10 @@ const faqItems = [
           <Link className={inlineLinkClass} href="/profile#dati-personali">
             Profilo
           </Link>{" "}
-          e aggiorna nome, data di nascita, anno di leva e luogo di servizio,
-          poi premi <strong>Salva modifiche</strong>.
+          dal menu del cerchio con le iniziali in alto a destra oppure, su
+          schermi stretti, dal menu con le tre linee alla voce{" "}
+          <strong>Area soci</strong>. Aggiorna nome, data di nascita, anno di
+          leva e luogo di servizio, poi premi <strong>Salva modifiche</strong>.
         </p>
         <p className="mt-3">
           Nella sezione{" "}
