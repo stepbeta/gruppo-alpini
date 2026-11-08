@@ -1,3 +1,4 @@
+import { notifyApprovalsChanged } from "./admin-counters";
 import { formatFriendlyError } from "./error-messages";
 import {
   buildIlikeOr,
@@ -383,6 +384,7 @@ export async function updateMemberApproval(
       return { member: null, error: error.message };
     }
 
+    notifyApprovalsChanged();
     return { member: data as Member, error: null };
   } catch (error) {
     return { member: null, error: errorMessage(error) };

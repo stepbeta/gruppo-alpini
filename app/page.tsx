@@ -18,11 +18,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { AdminCounterBadge } from "@/components/admin-counter-badge";
+import { useAdminCounters } from "@/components/admin-counters-provider";
 import { AuthGuard } from "@/components/auth-guard";
 import { MemberWelcomeHint } from "@/components/member-welcome-hint";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { useAuth } from "@/components/auth-provider";
+import { getAdminCounterBadge } from "@/lib/admin-counters";
 import { getFirstName, getInitials, getUserDisplayName } from "@/lib/display";
 import { fetchProfile, type Profile } from "@/lib/profile";
 import {
@@ -46,6 +49,8 @@ export default function HomePage() {
 
 function HomeContent() {
   const { user, isAdmin } = useAuth();
+  const { requests: pendingRequests, approvals: pendingApprovals } =
+    useAdminCounters();
   const userId = user?.id;
   const [profile, setProfile] = useState<Profile | null>(null);
 
@@ -68,6 +73,16 @@ function HomeContent() {
   const displayName = profile?.full_name?.trim() || getUserDisplayName(user);
   const firstName = getFirstName(displayName);
   const initials = getInitials(displayName);
+  const approvalsBadge = getAdminCounterBadge(
+    "approvals",
+    pendingApprovals,
+    isAdmin,
+  );
+  const requestsBadge = getAdminCounterBadge(
+    "requests",
+    pendingRequests,
+    isAdmin,
+  );
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -245,10 +260,13 @@ function HomeContent() {
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                 <UsersIcon className="h-5 w-5" />
               </span>
-              <div>
-                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                  Lista iscritti
-                </h2>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                    Lista iscritti
+                  </h2>
+                  <AdminCounterBadge badge={approvalsBadge} />
+                </div>
                 <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
                   Consulta i soci del gruppo e cerca per nome o luogo di
                   servizio.
@@ -269,10 +287,13 @@ function HomeContent() {
               <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
                 <MailIcon className="h-5 w-5" />
               </span>
-              <div>
-                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
-                  Richieste alla segreteria
-                </h2>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-50">
+                    Richieste alla segreteria
+                  </h2>
+                  <AdminCounterBadge badge={requestsBadge} />
+                </div>
                 <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
                   Invia una comunicazione e segui lo stato della tua richiesta.
                 </p>

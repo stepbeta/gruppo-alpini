@@ -27,10 +27,7 @@ export type HeaderNavItemId =
   | "avvisi"
   | "manuale";
 
-/**
- * Labels that a future counter badge can attach to. The counters themselves
- * are not implemented yet; this metadata only keeps the item model ready.
- */
+/** Labels used by the administrator pending-counter badges. */
 export type HeaderNavBadgeKey = "pending-approvals" | "pending-requests";
 
 export type HeaderNavItem = {

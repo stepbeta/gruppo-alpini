@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AdminCountersProvider } from "@/components/admin-counters-provider";
 import { AuthProvider } from "@/components/auth-provider";
 import { PostAuthRedirect } from "@/components/post-auth-redirect";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -58,8 +59,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col">
         <ThemeProvider>
           <AuthProvider>
-            <PostAuthRedirect />
-            {children}
+            <AdminCountersProvider>
+              <PostAuthRedirect />
+              {children}
+            </AdminCountersProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

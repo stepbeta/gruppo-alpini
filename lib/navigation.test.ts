@@ -59,7 +59,7 @@ describe("getHeaderNavigation", () => {
     );
   });
 
-  it("keeps badge slots on the future counter items", () => {
+  it("keeps badge slots on the counter items", () => {
     const navigation = getHeaderNavigation(false);
     const badgeKeys = Object.fromEntries(
       navigation.memberItems

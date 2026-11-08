@@ -68,7 +68,7 @@ The main gaps in this area are operational: there is no self-service administrat
 
 `/iscritti` is protected by `AuthGuard`. Approved members see approved profiles with name, birth date, enlistment year, and service place. The search field filters by name or service place through a server-side `ILIKE` expression, and the list is paginated at eight members per page. Birth dates are edited and displayed as masked `gg/mm/aaaa` values; the database keeps the ISO calendar date.
 
-Administrators receive pending and rejected rows as well, along with status badges and a pending-count pill that filters the directory. The edit dialog lets an administrator correct the four profile fields, approve or reject an account, export the member's data, or delete the member's account. The form never sends `is_admin` or `approval_status` through the profile-field update path; approval has its own explicit action and trigger protection.
+Administrators receive pending and rejected rows as well, along with status badges and a pending-count pill that filters the directory. The same pending-approvals queue is summarized by an administrator-only badge in the header (section 3.5.1). The edit dialog lets an administrator correct the four profile fields, approve or reject an account, export the member's data, or delete the member's account. The form never sends `is_admin` or `approval_status` through the profile-field update path; approval has its own explicit action and trigger protection.
 
 The directory also exposes a defence-in-depth detail: the `profiles` select policy lets a pending account read its own row but not other profiles. This is what allows the approval holding screen to work without opening the directory.
 
@@ -94,7 +94,7 @@ Event templates are an administrator-only convenience. A template stores a title
 
 Any approved member can submit a request through `/richieste`. The form trims the message, rejects an empty value, and stores it in `generic_requests`. The member sees their own requests with `In attesa` or `Risolta` status and submission time.
 
-Administrators see the `Bacheca della segreteria`, which lists every request with the author's name. It supports status filters, text search, exact open/resolved counts, and pagination at six rows per page. Administrators can resolve or reopen a request. The member-facing list is paginated at five rows per page.
+Administrators see the `Bacheca della segreteria`, which lists every request with the author's name. It supports status filters, text search, exact open/resolved counts, and pagination at six rows per page. The open count also appears as an administrator-only badge in the header and on the home shortcut (section 3.5.1). Administrators can resolve or reopen a request. The member-facing list is paginated at five rows per page.
 
 The database enforces the intended mutation surface in two ways. The table grant is `UPDATE (status)` rather than `UPDATE`, so an administrator cannot rewrite the message or owner through the API. The admin update policy calls `is_current_user_admin()`, and a non-blank check constraint rejects empty messages even on direct inserts.
 
@@ -108,9 +108,19 @@ Administrators edit the window through separate masked date (`gg/mm/aaaa`) and t
 
 Administrators manage banners from `/avvisi`: create, edit, activate/deactivate, and delete. The route is linked from the header's administrator-only `Amministrazione` group, from the home card, and from `/iscritti`. Above the list, the **Tutti**, **Attivi**, and **Passati** chips filter the rows and show live counts. **Attivi** contains only banners visible right now. **Passati** groups banners whose publication window has ended, even if the activation toggle is still on, so a re-enabled recurring notice is not presented as live. Scheduled and manually deactivated rows remain under **Tutti**. Each card shows the creation timestamp plus separate start and end date-times (or no limit) and explains when the activation flag conflicts with an expired window. The classification refreshes every minute, so a banner crossing its start or end boundary moves between chips without a page reload.
 
-Mutations dispatch a browser event (`ANNOUNCEMENTS_CHANGED_EVENT`), and the header listens for it, so the visible banner updates without a reload. The header also reloads on window focus. A missing table or a network failure is swallowed intentionally; a banner problem must not break every authenticated page.
+Mutations dispatch a browser event (`ANNOUNCEMENTS_CHANGED_EVENT`), and the header listens for it, so the visible banner updates without a reload. The header also reloads on window focus. A missing table or a network failure is swallowed intentionally; a banner problem must not break every authenticated page. The administrator counters reuse the same pattern through `REQUESTS_CHANGED_EVENT` and `APPROVALS_CHANGED_EVENT` (section 3.5.1).
 
 The route is also protected by the approval-restrictive policy. It is not currently covered by the consent-restrictive policy, so the blocking consent gate is the only layer preventing an unconsented direct API client from reading a visible banner. That is low-sensitivity content, but it is an inconsistency worth closing if the policy is meant to cover every portal surface.
+
+### 3.5.1 Administrator pending counters
+
+Administrators get two at-a-glance queues: the number of `generic_requests` rows with `status = 'open'` and the number of `profiles` rows with `approval_status = 'pending'`. The counters appear as small amber badges on the header's **Richieste** and **Iscritti** items (desktop navigation and mobile drawer) and on the corresponding shortcuts on `/`. The **Richieste** badge counts the secretariat queue; the **Iscritti** badge counts accounts waiting for approval.
+
+A shared client provider reads both counts through the browser Supabase singleton using exact `HEAD` counts (`select('*', { count: 'exact', head: true })` with the relevant filter), so rows are never downloaded. The existing administrator select policies on both tables authorize the reads; no migration, RPC, or policy change is involved.
+
+The counters are active only when `AuthProvider.isAdmin` is true. Regular members issue no count query and see no badge or any other visual change. Failures degrade silently to zero, following the announcement banner's rule that a counter problem must never break a page. Zero counts render nothing; values above the display limit render `99+` while the accessible Italian label keeps the real number (for example “120 richieste in attesa”).
+
+Refresh is event-driven, without polling: the provider refetches on window focus, on `REQUESTS_CHANGED_EVENT` (dispatched after resolving or reopening a request), and on `APPROVALS_CHANGED_EVENT` (dispatched after an approval, rejection, or revocation). The same provider feeds the header and home shortcuts, so one mutation updates every visible badge without a reload.
 
 ### 3.8 Public privacy policy and organization settings
 

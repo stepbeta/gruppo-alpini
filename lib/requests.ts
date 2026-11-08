@@ -1,3 +1,4 @@
+import { notifyRequestsChanged } from "./admin-counters";
 import { formatFriendlyError } from "./error-messages";
 import {
   getPageCount,
@@ -278,6 +279,7 @@ export async function updateGenericRequestStatus(
       return { request: null, error: error.message };
     }
 
+    notifyRequestsChanged();
     return { request: data as GenericRequestRecord, error: null };
   } catch (error) {
     return { request: null, error: errorMessage(error) };

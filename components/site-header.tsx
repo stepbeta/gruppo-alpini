@@ -24,16 +24,23 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { AdminCounterBadge } from "./admin-counter-badge";
+import { useAdminCounters } from "./admin-counters-provider";
 import { Brand } from "./brand";
 import { AnnouncementBanner } from "./announcement-banner";
 import { getInitials, getUserDisplayName } from "@/lib/display";
 import { useAuth } from "./auth-provider";
 import { ThemeToggle } from "./theme-toggle";
 import {
+  getAdminCounterBadge,
+  type AdminCounterBadgeData,
+} from "@/lib/admin-counters";
+import {
   HEADER_NAV_BREAKPOINT_PX,
   HEADER_PROFILE_ITEM,
   getHeaderNavigation,
   isHeaderNavItemActive,
+  type HeaderNavBadgeKey,
   type HeaderNavItem,
   type HeaderNavItemId,
 } from "@/lib/navigation";
@@ -61,6 +68,10 @@ const NAV_ICONS: Record<HeaderNavItemId, IconComponent> = {
   manuale: BookOpenIcon,
 };
 
+type HeaderNavBadges = Partial<
+  Record<HeaderNavBadgeKey, AdminCounterBadgeData | null>
+>;
+
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -70,17 +81,20 @@ const INACTIVE_LINK_CLASSES =
   "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100";
 
 function HeaderNavLink({
+  badges,
   item,
   onNavigate,
   pathname,
   variant,
 }: {
+  badges: HeaderNavBadges;
   item: HeaderNavItem;
   onNavigate?: () => void;
   pathname: string;
   variant: "desktop" | "drawer";
 }) {
   const Icon = NAV_ICONS[item.id];
+  const badge = item.badgeKey ? (badges[item.badgeKey] ?? null) : null;
   const isActive = isHeaderNavItemActive(pathname, item.href);
   const layoutClasses =
     variant === "desktop"
@@ -103,7 +117,7 @@ function HeaderNavLink({
       />
       <span className="flex min-w-0 items-center gap-1.5">
         <span>{item.label}</span>
-        {/* Pending-counter badges (approvals/requests) attach here later. */}
+        <AdminCounterBadge badge={badge} />
       </span>
     </Link>
   );
@@ -111,6 +125,8 @@ function HeaderNavLink({
 
 export function SiteHeader() {
   const { user, signOut, isAdmin } = useAuth();
+  const { requests: pendingRequests, approvals: pendingApprovals } =
+    useAdminCounters();
   const pathname = usePathname();
   const router = useRouter();
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -128,6 +144,18 @@ export function SiteHeader() {
 
   const { memberItems, drawerMemberItems, adminItems } =
     getHeaderNavigation(isAdmin);
+  const badges: HeaderNavBadges = {
+    "pending-approvals": getAdminCounterBadge(
+      "approvals",
+      pendingApprovals,
+      isAdmin,
+    ),
+    "pending-requests": getAdminCounterBadge(
+      "requests",
+      pendingRequests,
+      isAdmin,
+    ),
+  };
   const displayName = getUserDisplayName(user);
   const initials = getInitials(displayName);
   const isProfileActive = isHeaderNavItemActive(
@@ -332,6 +360,7 @@ export function SiteHeader() {
             >
               {memberItems.map((item) => (
                 <HeaderNavLink
+                  badges={badges}
                   item={item}
                   key={item.id}
                   pathname={pathname}
@@ -352,6 +381,7 @@ export function SiteHeader() {
                   >
                     {adminItems.map((item) => (
                       <HeaderNavLink
+                        badges={badges}
                         item={item}
                         key={item.id}
                         pathname={pathname}
@@ -514,6 +544,7 @@ export function SiteHeader() {
                 {drawerMemberItems.map((item) => (
                   <li key={item.id}>
                     <HeaderNavLink
+                      badges={badges}
                       item={item}
                       onNavigate={() => setIsDrawerOpen(false)}
                       pathname={pathname}
@@ -538,6 +569,7 @@ export function SiteHeader() {
                     {adminItems.map((item) => (
                       <li key={item.id}>
                         <HeaderNavLink
+                          badges={badges}
                           item={item}
                           onNavigate={() => setIsDrawerOpen(false)}
                           pathname={pathname}

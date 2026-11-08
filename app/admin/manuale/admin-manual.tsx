@@ -521,6 +521,15 @@ export function AdminManual() {
                 <strong>Area soci</strong> e, se sei amministratore,{" "}
                 <strong>Amministrazione</strong>.
               </p>
+              <p className="mt-2">
+                Se sei amministratore, accanto a <strong>Richieste</strong> e{" "}
+                <strong>Iscritti</strong> compaiono due piccoli contatori
+                arancioni. Indicano quante richieste alla segreteria sono
+                ancora aperte e quante persone attendono l’approvazione. Gli
+                stessi numeri sono visibili sulle schede corrispondenti della
+                pagina iniziale e si aggiornano quando gestisci una richiesta o
+                un’approvazione.
+              </p>
             </div>
 
             <div>
@@ -608,8 +617,9 @@ export function AdminManual() {
                   scomparsa sugli schermi stretti).
                 </li>
                 <li>
-                  Usa il filtro <strong>In attesa</strong> oppure il contatore
-                  delle richieste da esaminare.
+                  Controlla il badge arancione accanto a <strong>Iscritti</strong>{" "}
+                  nel menu (o sulla scheda della pagina iniziale), poi usa il
+                  filtro <strong>In attesa</strong> nel tabellone.
                 </li>
                 <li>Cerca la persona per nome o luogo di servizio, se necessario.</li>
                 <li>Premi <strong>Modifica</strong> sulla scheda interessata.</li>
@@ -775,7 +785,10 @@ export function AdminManual() {
             <p>
               I soci possono inviare una comunicazione alla segreteria dalla
               pagina <strong>Richieste</strong>. Ogni socio vede solo le proprie
-              richieste; gli amministratori vedono l’intero elenco.
+              richieste; gli amministratori vedono l’intero elenco. Il badge
+              arancione accanto a <strong>Richieste</strong> nel menu, e quello
+              sulla scheda della pagina iniziale, mostrano quante richieste sono
+              ancora aperte.
             </p>
 
             <div>
@@ -786,6 +799,7 @@ export function AdminManual() {
                   "I filtri Tutte, In attesa e Risolte restringono l’elenco.",
                   "La ricerca controlla il testo delle richieste.",
                   "L’elenco è diviso in pagine per restare leggibile.",
+                  "Dopo aver risolto o riaperto una richiesta, il contatore del menu e della home si aggiorna senza ricaricare la pagina.",
                 ]}
               />
             </div>

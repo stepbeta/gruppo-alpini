@@ -45,11 +45,11 @@ There is also a machine role, `service_role`, used only by the server-side accou
 | --- | --- | --- |
 | **Identity and access** | Email/password sign-up and sign-in, Google OAuth, email confirmation, password recovery, password change, email change, provider-aware credential UI, Italian error messages, safe post-login redirects | `/login`, `/login/forgot`, `/login/reset-password`, `/profile` |
 | **Onboarding and consent** | First-login blocking privacy consent, versioned consent history, acceptance alternatives (sign out or delete account), administrator approval workflow | `PrivacyConsentGate`, `ApprovalGate`, `/profile` |
-| **Home** | Personal greeting, quick links, administrator shortcuts (including the manual), announcement banner | `/` |
+| **Home** | Personal greeting, quick links, administrator shortcuts (including the manual), administrator pending counters on the requests and directory cards, announcement banner | `/` |
 | **Member help** | Static task-oriented FAQ / “Guida rapida” with deep links to events, requests, directory, profile, and privacy; reachable from the footer, header, and holding screens | `/faq` |
-| **Member directory** | Approved-member directory, name/service-place search, server-side pagination, administrator pending filter, profile editing, approval badges, deletion | `/iscritti` |
+| **Member directory** | Approved-member directory, name/service-place search, server-side pagination, administrator pending filter and header pending-approvals counter, profile editing, approval badges, deletion | `/iscritti` |
 | **Events and RSVP** | Upcoming and past event lists with **Tutti** / **Prossimi** / **Passati** filter chips, search, pagination, Italian date/time input, all-day events, `Presente` / `In forse` / `Assente` responses, attendance totals and names for administrators, event CRUD, reusable event templates, shareable deep links | `/eventi` |
-| **Requests** | Personal request submission and history, secretariat board for administrators, status filtering, open/resolved counts, resolve/reopen actions | `/richieste` |
+| **Requests** | Personal request submission and history, secretariat board for administrators, status filtering, open/resolved counts, header pending-requests counter, resolve/reopen actions | `/richieste` |
 | **Announcements** | Platform-wide banner, optional scheduling window, activation toggle, administrator CRUD, live refresh after changes; the management page is linked from the header's administrator-only group | `/avvisi`, header banner |
 | **Profile and credentials** | Editable personal data, password and email management for email/password accounts, Google-account notice, data export, account deletion; reachable from the header avatar menu or the mobile drawer | `/profile` |
 | **Privacy and data rights** | Public policy page, dynamic controller details, JSON/text/HTML export, account deletion and anonymization, consent history | `/privacy`, `/profile`, `/iscritti` |
