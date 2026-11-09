@@ -51,7 +51,11 @@ export type Member = Pick<
   | "approval_status"
 >;
 
-/** Directory chips. Each value maps to a server-side PostgREST filter. */
+/**
+ * Directory chips. Each value maps to a server-side PostgREST filter.
+ * `pending` is administrator-only; render chips through
+ * `getVisibleMemberFilters()` rather than using this constant directly.
+ */
 export type MembersFilter = "all" | "admins" | "users" | "pending";
 
 export const MEMBER_FILTERS: ReadonlyArray<{
@@ -63,6 +67,21 @@ export const MEMBER_FILTERS: ReadonlyArray<{
   { value: "users", label: "Utenti" },
   { value: "pending", label: "In attesa" },
 ];
+
+/**
+ * Directory chips available to the signed-in member.
+ *
+ * Pending registrations are an administrator-only queue. Regular members must
+ * not receive the chip at all; RLS independently prevents the query from
+ * returning pending rows if the client is bypassed.
+ */
+export function getVisibleMemberFilters(
+  isAdmin: boolean,
+): ReadonlyArray<{ value: MembersFilter; label: string }> {
+  return isAdmin
+    ? MEMBER_FILTERS
+    : MEMBER_FILTERS.filter((filter) => filter.value !== "pending");
+}
 
 export type MembersFilterCriteria = {
   isAdmin?: boolean;

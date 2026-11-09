@@ -607,7 +607,9 @@ export function AdminManual() {
             <p>
               La pagina <strong>Iscritti</strong> è l’elenco dei soci. Gli
               amministratori vedono anche gli account in attesa e quelli
-              rifiutati, oltre ai soci già approvati.
+              rifiutati, oltre ai soci già approvati. I soci non amministratori
+              vedono solo i profili approvati: le richieste in attesa sono
+              riservate a te e all’interessato.
             </p>
 
             <div>
@@ -615,8 +617,9 @@ export function AdminManual() {
               <p className="mt-2">
                 Sopra l’elenco trovi i chip <strong>Tutti</strong>,{" "}
                 <strong>Amministratori</strong>, <strong>Utenti</strong> e{" "}
-                <strong>In attesa</strong>. Amministratori mostra chi ha il
-                ruolo; Utenti mostra i soci senza ruolo; In attesa mostra gli
+                <strong>In attesa</strong>. Il chip <strong>In attesa</strong> è
+                visibile solo agli amministratori. Amministratori mostra chi ha
+                il ruolo; Utenti mostra i soci senza ruolo; In attesa mostra gli
                 account da approvare o rifiutare. I chip si combinano con la
                 ricerca per nome o luogo di servizio e riportano sempre alla
                 prima pagina quando cambiano.

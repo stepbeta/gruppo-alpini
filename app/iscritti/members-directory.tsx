@@ -37,10 +37,10 @@ import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { getInitials } from "@/lib/display";
 import { formatFriendlyError } from "@/lib/error-messages";
 import {
-  MEMBER_FILTERS,
   fetchMemberCount,
   fetchMembers,
   fetchProfile,
+  getVisibleMemberFilters,
   type Member,
   type MembersFilter,
 } from "@/lib/profile";
@@ -93,7 +93,7 @@ function formatDirectoryError(message: string): string {
 const MEMBER_PAGE_SIZE = 8;
 
 export function MembersDirectory() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, isAdmin: isAuthAdmin } = useAuth();
   const router = useRouter();
   const userId = user?.id;
 
@@ -116,6 +116,12 @@ export function MembersDirectory() {
   const [notice, setNotice] = useState<string | null>(null);
   const didLoadRef = useRef(false);
   const listTopRef = useRef<HTMLDivElement>(null);
+
+  const visibleFilters = getVisibleMemberFilters(isAuthAdmin);
+  // A regular member must never request the pending queue. If the role changes
+  // while the chip is selected, fall back to the full approved directory.
+  const effectiveFilter: MembersFilter =
+    isAuthAdmin || filter !== "pending" ? filter : "all";
 
   useEffect(() => {
     if (!userId) return;
@@ -153,7 +159,7 @@ export function MembersDirectory() {
       page,
       pageSize: MEMBER_PAGE_SIZE,
       search: debouncedQuery,
-      filter,
+      filter: effectiveFilter,
     }).then((result) => {
       if (!isActive) return;
 
@@ -183,7 +189,7 @@ export function MembersDirectory() {
     return () => {
       isActive = false;
     };
-  }, [userId, page, debouncedQuery, filter, reloadKey]);
+  }, [userId, page, debouncedQuery, effectiveFilter, reloadKey]);
 
   useEffect(() => {
     if (!userId) return;
@@ -202,10 +208,11 @@ export function MembersDirectory() {
 
   const hasSearch = debouncedQuery.length > 0;
   const hasDirectory = totalMembers > 0 || totalResults > 0;
-  const isFiltering = hasSearch || filter !== "all";
+  const isFiltering = hasSearch || effectiveFilter !== "all";
   const hasResults = members.length > 0;
   const activeFilter =
-    MEMBER_FILTERS.find((item) => item.value === filter) ?? MEMBER_FILTERS[0];
+    visibleFilters.find((item) => item.value === effectiveFilter) ??
+    visibleFilters[0];
   const loadError = profileError ?? membersError;
 
   useHashScroll(!isLoading && !loadError && (hasDirectory || isFiltering));
@@ -388,8 +395,8 @@ export function MembersDirectory() {
               className="mt-3 flex flex-wrap gap-2"
               role="group"
             >
-              {MEMBER_FILTERS.map((item) => {
-                const isSelected = filter === item.value;
+              {visibleFilters.map((item) => {
+                const isSelected = effectiveFilter === item.value;
 
                 return (
                   <button
@@ -413,9 +420,9 @@ export function MembersDirectory() {
             </div>
 
             <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
-              Amministratori e Utenti distinguono i ruoli; In attesa mostra gli
-              account che devono ancora essere approvati. I filtri si combinano
-              con la ricerca e restano sul server.
+              {isAuthAdmin
+                ? "Amministratori e Utenti distinguono i ruoli; In attesa mostra gli account che devono ancora essere approvati. I filtri si combinano con la ricerca e restano sul server."
+                : "Amministratori e Utenti distinguono i ruoli. I filtri si combinano con la ricerca e restano sul server."}
             </p>
 
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
@@ -432,7 +439,7 @@ export function MembersDirectory() {
                     Aggiornamento della lista…
                   </span>
                 ) : hasSearch ? (
-                  filter === "all"
+                  effectiveFilter === "all"
                     ? `${totalResults} ${
                         totalResults === 1
                           ? "iscritto trovato"
@@ -441,15 +448,15 @@ export function MembersDirectory() {
                     : `${totalResults} ${
                         totalResults === 1 ? "risultato" : "risultati"
                       } con il filtro ${activeFilter.label}`
-                ) : filter === "pending" ? (
+                ) : effectiveFilter === "pending" ? (
                   `${totalResults} account in attesa`
-                ) : filter === "admins" ? (
+                ) : effectiveFilter === "admins" ? (
                   `${totalResults} ${
                     totalResults === 1
                       ? "amministratore"
                       : "amministratori"
                   }`
-                ) : filter === "users" ? (
+                ) : effectiveFilter === "users" ? (
                   `${totalResults} ${
                     totalResults === 1 ? "utente" : "utenti"
                   }`
@@ -459,7 +466,7 @@ export function MembersDirectory() {
                   }`
                 )}
               </p>
-              {query || filter !== "all" ? (
+              {query || effectiveFilter !== "all" ? (
                 <button
                   className="rounded text-sm font-semibold text-emerald-700 transition hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
                   onClick={() => {
@@ -578,19 +585,19 @@ export function MembersDirectory() {
             className="mt-6"
             description={
               hasSearch
-                ? filter === "all"
+                ? effectiveFilter === "all"
                   ? `Non ci sono risultati per “${query.trim()}”. Controlla l’ortografia o prova con un cognome, una parte del nome o il luogo di servizio.`
                   : `Non ci sono risultati per “${query.trim()}” con il filtro ${activeFilter.label}. Prova ad azzerare la ricerca o a scegliere Tutti.`
-                : filter === "pending"
+                : effectiveFilter === "pending"
                   ? "Tutte le richieste di registrazione sono state gestite. I nuovi account compariranno qui finché non vengono approvati o rifiutati."
-                  : filter === "admins"
+                  : effectiveFilter === "admins"
                     ? "Nessun account corrisponde al filtro Amministratori. Puoi assegnare il ruolo dalla scheda di un socio approvato."
                     : "Nessun account corrisponde al filtro Utenti. Gli amministratori sono esclusi da questa vista."
             }
             hint={
               hasSearch
                 ? "Suggerimento: la ricerca non distingue maiuscole e minuscole. Prova ad esempio con “Belluno” o con le prime lettere del cognome."
-                : filter === "pending"
+                : effectiveFilter === "pending"
                   ? "Gli iscritti già approvati restano visibili nella lista completa."
                   : "Usa Tutti per rivedere l’intera directory."
             }
@@ -598,9 +605,9 @@ export function MembersDirectory() {
             title={
               hasSearch
                 ? "Nessun iscritto trovato"
-                : filter === "pending"
+                : effectiveFilter === "pending"
                   ? "Nessun account in attesa"
-                  : filter === "admins"
+                  : effectiveFilter === "admins"
                     ? "Nessun amministratore"
                     : "Nessun utente"
             }

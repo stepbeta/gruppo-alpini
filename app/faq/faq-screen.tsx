@@ -144,9 +144,10 @@ const faqItems = [
         <p className="mt-3">
           Ogni scheda mostra nome, data di nascita, anno di leva e luogo di
           servizio. Questi dettagli sono visibili solo ai soci approvati; la
-          modifica delle schede è riservata agli amministratori. Se non trovi
-          una persona, prova con il cognome o con una parte del luogo di
-          servizio.
+          modifica delle schede è riservata agli amministratori. Le richieste in
+          attesa di approvazione non compaiono nella lista dei soci: sono
+          visibili solo agli amministratori e all’interessato. Se non trovi una
+          persona, prova con il cognome o con una parte del luogo di servizio.
         </p>
       </>
     ),

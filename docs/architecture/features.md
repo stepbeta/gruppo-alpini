@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Feature Implementations and UI Logic |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 6 November 2026 |
+| Snapshot date | 9 November 2026 |
 
 ### 2.6 Query and pagination architecture
 
@@ -12,7 +12,7 @@ The list screens no longer download every row. `lib/pagination.ts` normalizes pa
 
 | List | Page size | Notes |
 | --- | --- | --- |
-| Member directory | 8 | Search by `full_name` or `service_place`; chips for all, administrators, regular users, or pending |
+| Member directory | 8 | Search by `full_name` or `service_place`; chips for all, administrators, and regular users, plus the administrator-only pending chip |
 | Upcoming events | 5 | Independent page state from past events; ordered ascending by `event_date` |
 | Past events | 5 | Ordered descending by `event_date` |
 | Personal requests | 5 | Scoped to the signed-in member |
@@ -66,9 +66,9 @@ The main gaps in this area are operational: administrator promotion is now handl
 
 ### 3.2 Member directory and administrative operations
 
-`/iscritti` is protected by `AuthGuard`. Approved members see approved profiles with name, birth date, enlistment year, and service place. The search field filters by name or service place through a server-side `ILIKE` expression, and the list is paginated at eight members per page. Birth dates are edited and displayed as masked `gg/mm/aaaa` values; the database keeps the ISO calendar date.
+`/iscritti` is protected by `AuthGuard`. Approved members see approved profiles with name, birth date, enlistment year, and service place; pending registrations are not part of their directory. The search field filters by name or service place through a server-side `ILIKE` expression, and the list is paginated at eight members per page. Birth dates are edited and displayed as masked `gg/mm/aaaa` values; the database keeps the ISO calendar date.
 
-Above the list, four status chips mirror the conventions already used on `/eventi` and `/avvisi`: **Tutti**, **Amministratori**, **Utenti**, and **In attesa**. They map to server-side PostgREST conditions (`is_admin = true`, `is_admin = false`, `approval_status = 'pending'`, or no condition) and compose with the text search instead of filtering the loaded page in React. Changing a chip resets the page to 1; the existing clamping still protects against a page that becomes empty after a mutation. The chips deliberately omit live counts so the screen does not add unpaginated count queries; the administrator-only pending badge in the header remains the at-a-glance queue (section 3.5.1).
+Above the list, approved members get three status chips mirroring the conventions already used on `/eventi` and `/avvisi`: **Tutti**, **Amministratori**, and **Utenti**. Administrators also get **In attesa**, which is absent from the DOM for regular members. The chips map to server-side PostgREST conditions (`is_admin = true`, `is_admin = false`, `approval_status = 'pending'`, or no condition) and compose with the text search instead of filtering the loaded page in React. Changing a chip resets the page to 1; the existing clamping still protects against a page that becomes empty after a mutation. The chips deliberately omit live counts so the screen does not add unpaginated count queries; the administrator-only pending badge in the header remains the at-a-glance queue (section 3.5.1).
 
 Administrators receive pending and rejected rows as well, along with status badges. The same pending-approvals queue is summarized by an administrator-only badge in the header (section 3.5.1). The edit dialog lets an administrator correct the four profile fields, approve or reject an account, manage the administrator role, export the member's data, or delete the member's account. The form never sends `is_admin` or `approval_status` through the profile-field update path; approval has its own explicit action and trigger protection.
 
@@ -76,7 +76,7 @@ A clearly separated **Gestione amministratore** section in the same dialog promo
 
 The database enforces the role rules even if the client is bypassed. A `BEFORE UPDATE` trigger caps the group at four administrators and blocks self-demotion, while the existing trigger still rejects any `is_admin` change from a non-administrator. Section 2.5 documents the helper and trigger ordering.
 
-The directory also exposes a defence-in-depth detail: the `profiles` select policy lets a pending account read its own row but not other profiles. This is what allows the approval holding screen to work without opening the directory.
+The directory also exposes a defence-in-depth detail: the `profiles` select policy exposes pending rows only to administrators and to the pending account itself. A regular member reads only approved profiles; a pending account reads its own row but not other profiles. This is what allows the approval holding screen to work without opening the directory, and the restrictive pending guard keeps that boundary even if another permissive policy is added later.
 
 ### 3.3 Events and RSVP
 

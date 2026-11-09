@@ -4,13 +4,13 @@
 | --- | --- |
 | Document type | Architecture overview: Security, Data Model, RLS, and Privacy Flows |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 5 November 2026 |
+| Snapshot date | 9 November 2026 |
 
 ### 2.4 Data model
 
 | Table | Purpose | Key relationships and invariants |
 | --- | --- | --- |
-| `profiles` | Member identity, directory fields, administrator flag, approval state | `id` is both primary key and a foreign key to `auth.users(id)` with `ON DELETE CASCADE`. `is_admin` defaults to false; only administrators may change it, at most four administrators may coexist, and an administrator cannot demote themselves. `approval_status` is `pending`, `approved`, or `rejected`. |
+| `profiles` | Member identity, directory fields, administrator flag, approval state | `id` is both primary key and a foreign key to `auth.users(id)` with `ON DELETE CASCADE`. `is_admin` defaults to false; only administrators may change it, at most four administrators may coexist, and an administrator cannot demote themselves. `approval_status` is `pending`, `approved`, or `rejected`. Select RLS exposes `pending` rows only to administrators and to the row owner; approved members read approved profiles, while rejected rows remain visible only to administrators and the row owner. |
 | `events` | Calendar entries | `created_by` references `profiles(id)` with `ON DELETE SET NULL`; it is database-owned. `event_date` is `timestamptz`; `is_all_day` distinguishes all-day dates from midnight events. |
 | `event_templates` | Reusable event details for administrators | `created_by` references `profiles(id)` with `ON DELETE SET NULL` and is database-owned. `default_time` is `NULL` for all-day templates and required for timed ones; the event date is not stored. Non-blank title check. |
 | `event_responses` | One RSVP per member per event | Unique `(event_id, user_id)`. `event_id` cascades on event deletion. `user_id` becomes `NULL` on profile deletion; the status remains for historical totals. |
@@ -34,7 +34,7 @@ The main policy matrix is:
 
 | Table | Regular member | Administrator |
 | --- | --- | --- |
-| `profiles` | Read own row and approved profiles; update own row; insert own missing row | Read every row; update any row; the `is_admin` and `id` fields are trigger-protected for non-admins, and administrator changes are capped at four with self-demotion blocked |
+| `profiles` | Read own row (any status) and approved profiles; pending and rejected rows of other members are hidden; update own row; insert own missing row | Read every row; update any row; the `is_admin` and `id` fields are trigger-protected for non-admins, and administrator changes are capped at four with self-demotion blocked |
 | `events` | Read all rows, subject to consent and approval gates | Insert, update, delete; inserts require `created_by = auth.uid()` and the attribution trigger |
 | `event_templates` | No access | Read, insert, update, delete; inserts require `created_by = auth.uid()` and the attribution trigger |
 | `event_responses` | Read and upsert only their own response | Read every response for attendance totals; still write only their own response |
@@ -47,7 +47,7 @@ The main policy matrix is:
 On top of the table policies, two restrictive layers apply:
 
 - **Privacy consent.** `has_accepted_privacy_consent()` is a `SECURITY DEFINER` helper. Restrictive policies require it on `profiles`, `events`, `event_responses`, `generic_requests`, `event_templates`, `purchase_items`, and `purchase_orders`. The helper returns true for any recorded consent version; the client is responsible for requiring the current version.
-- **Account approval.** `is_current_user_approved()` requires `approval_status = 'approved'` or `is_admin = true`. Restrictive policies require it on events, responses, requests, event templates, purchase tables, and announcement banners. The profile read policy separately allows an account to read its own row so the holding screen can explain the situation.
+- **Account approval.** `is_current_user_approved()` requires `approval_status = 'approved'` or `is_admin = true`. Restrictive policies require it on events, responses, requests, event templates, purchase tables, and announcement banners. The profile select policy allows an account to read its own row in any status, exposes approved profiles to approved members, and exposes pending or rejected rows only to administrators and the row owner. The own-row arm is what lets the holding screen explain the situation. A separate restrictive select policy on `profiles` filters `pending` rows to the row owner or an administrator, so a future permissive policy cannot re-expose them.
 
 The static `/faq` help page is a deliberate exception to the two UI gates. `SessionGuard` requires a session but not privacy consent or approval, because the page must remain reachable from the consent and approval holding screens and performs no Supabase data reads. It must not be extended with member, event, or request data without re-evaluating that boundary.
 

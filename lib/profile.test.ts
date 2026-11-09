@@ -7,16 +7,18 @@ import {
   composeMembersQuery,
   formatAdminRoleError,
   getMembersFilterCriteria,
+  getVisibleMemberFilters,
 } from "./profile";
 
 // profile.ts imports the browser Supabase client. The functions under test are
 // pure, so replace it to keep the unit tests hermetic and free of env vars.
 vi.mock("./supabase", () => ({ supabase: null }));
 
-// This suite covers the pure chip mapping, query composition, and error
-// mapping only. The four-administrator cap and the self-demotion guard live in
-// PostgreSQL triggers; they cannot be exercised by Vitest and must be verified
-// manually against a linked project or by a future database-level test suite.
+// This suite covers the pure chip mapping, query composition, role-based chip
+// visibility, and error mapping only. The four-administrator cap, the
+// self-demotion guard, and the profiles RLS policy live in PostgreSQL; they
+// cannot be exercised by Vitest and must be verified manually against a linked
+// project or by a future database-level test suite.
 
 describe("MEMBER_FILTERS", () => {
   it("exposes the four directory chips in display order", () => {
@@ -25,6 +27,20 @@ describe("MEMBER_FILTERS", () => {
       { value: "admins", label: "Amministratori" },
       { value: "users", label: "Utenti" },
       { value: "pending", label: "In attesa" },
+    ]);
+  });
+});
+
+describe("getVisibleMemberFilters", () => {
+  it("shows the pending chip to administrators", () => {
+    expect(getVisibleMemberFilters(true)).toEqual(MEMBER_FILTERS);
+  });
+
+  it("omits the pending chip for regular members", () => {
+    expect(getVisibleMemberFilters(false)).toEqual([
+      { value: "all", label: "Tutti" },
+      { value: "admins", label: "Amministratori" },
+      { value: "users", label: "Utenti" },
     ]);
   });
 });
