@@ -10,8 +10,9 @@
  * must be reviewed and updated simultaneously in the same pull request to keep
  * user guidance fully aligned with the current code.
  *
- * In pratica: se cambi la ricerca, i filtri di approvazione o i dati mostrati
- * nella directory, aggiorna i suggerimenti e gli stati vuoti nello stesso PR.
+ * In pratica: se cambi la ricerca, i filtri di stato o ruolo, la gestione
+ * degli amministratori o i dati mostrati nella directory, aggiorna i
+ * suggerimenti e gli stati vuoti nello stesso PR.
  * ============================================================================
  */
 
@@ -36,10 +37,12 @@ import { DeleteAccountDialog } from "@/components/delete-account-dialog";
 import { getInitials } from "@/lib/display";
 import { formatFriendlyError } from "@/lib/error-messages";
 import {
+  MEMBER_FILTERS,
   fetchMemberCount,
   fetchMembers,
   fetchProfile,
   type Member,
+  type MembersFilter,
 } from "@/lib/profile";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { useHashScroll } from "@/lib/use-hash-scroll";
@@ -98,7 +101,6 @@ export function MembersDirectory() {
   const [totalMembers, setTotalMembers] = useState(0);
   const [totalResults, setTotalResults] = useState(0);
   const [pageCount, setPageCount] = useState(0);
-  const [pendingCount, setPendingCount] = useState(0);
   const [page, setPage] = useState(1);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -108,7 +110,7 @@ export function MembersDirectory() {
   const [reloadKey, setReloadKey] = useState(0);
   const [query, setQuery] = useState("");
   const debouncedQuery = useDebouncedValue(query.trim(), 350);
-  const [showPendingOnly, setShowPendingOnly] = useState(false);
+  const [filter, setFilter] = useState<MembersFilter>("all");
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [deletingMember, setDeletingMember] = useState<Member | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -151,7 +153,7 @@ export function MembersDirectory() {
       page,
       pageSize: MEMBER_PAGE_SIZE,
       search: debouncedQuery,
-      approvalStatus: showPendingOnly ? "pending" : undefined,
+      filter,
     }).then((result) => {
       if (!isActive) return;
 
@@ -181,7 +183,7 @@ export function MembersDirectory() {
     return () => {
       isActive = false;
     };
-  }, [userId, page, debouncedQuery, showPendingOnly, reloadKey]);
+  }, [userId, page, debouncedQuery, filter, reloadKey]);
 
   useEffect(() => {
     if (!userId) return;
@@ -198,27 +200,12 @@ export function MembersDirectory() {
     };
   }, [userId, reloadKey]);
 
-  useEffect(() => {
-    if (!userId || !isAdmin) {
-      return;
-    }
-
-    let isActive = true;
-
-    fetchMemberCount("pending").then(({ count }) => {
-      if (!isActive) return;
-      setPendingCount(count);
-    });
-
-    return () => {
-      isActive = false;
-    };
-  }, [userId, isAdmin, reloadKey]);
-
   const hasSearch = debouncedQuery.length > 0;
   const hasDirectory = totalMembers > 0 || totalResults > 0;
-  const isFiltering = hasSearch || showPendingOnly;
+  const isFiltering = hasSearch || filter !== "all";
   const hasResults = members.length > 0;
+  const activeFilter =
+    MEMBER_FILTERS.find((item) => item.value === filter) ?? MEMBER_FILTERS[0];
   const loadError = profileError ?? membersError;
 
   useHashScroll(!isLoading && !loadError && (hasDirectory || isFiltering));
@@ -239,6 +226,15 @@ export function MembersDirectory() {
 
       setEditingMember(null);
       setReloadKey((current) => current + 1);
+
+      if (previousMember && previousMember.is_admin !== updatedMember.is_admin) {
+        setNotice(
+          updatedMember.is_admin
+            ? `${displayName} è ora amministratore.`
+            : `Il ruolo di amministratore di ${displayName} è stato revocato.`,
+        );
+        return;
+      }
 
       if (
         previousMember &&
@@ -332,27 +328,6 @@ export function MembersDirectory() {
                   Gestisci avvisi
                 </Link>
               ) : null}
-              {isAdmin && pendingCount > 0 ? (
-                <button
-                  aria-pressed={showPendingOnly}
-                  className={`inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-semibold shadow-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 ${
-                    showPendingOnly
-                      ? "border-amber-500 bg-amber-500 text-amber-950 dark:border-amber-400 dark:bg-amber-400 dark:text-amber-950"
-                      : "border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
-                  }`}
-                  onClick={() => {
-                    setShowPendingOnly((current) => !current);
-                    setPage(1);
-                  }}
-                  type="button"
-                >
-                  <ClockIcon className="h-4 w-4" />
-                  {pendingCount}{" "}
-                  {pendingCount === 1
-                    ? "richiesta in attesa"
-                    : "richieste in attesa"}
-                </button>
-              ) : null}
               <p className="inline-flex w-fit items-center gap-2 rounded-full border border-zinc-200 bg-white px-3.5 py-2 text-sm font-medium text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
                 <UsersIcon className="h-4 w-4 text-emerald-700 dark:text-emerald-400" />
                 {totalMembers}{" "}
@@ -408,6 +383,41 @@ export function MembersDirectory() {
               distingue maiuscole e minuscole e accetta anche parole parziali.
             </p>
 
+            <div
+              aria-label="Filtra gli iscritti"
+              className="mt-3 flex flex-wrap gap-2"
+              role="group"
+            >
+              {MEMBER_FILTERS.map((item) => {
+                const isSelected = filter === item.value;
+
+                return (
+                  <button
+                    aria-pressed={isSelected}
+                    className={`inline-flex items-center rounded-full border px-3.5 py-2 text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 ${
+                      isSelected
+                        ? "border-emerald-700 bg-emerald-700 text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                        : "border-zinc-300 bg-white text-zinc-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-emerald-800 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-200"
+                    }`}
+                    key={item.value}
+                    onClick={() => {
+                      setFilter(item.value);
+                      setPage(1);
+                    }}
+                    type="button"
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <p className="mt-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400">
+              Amministratori e Utenti distinguono i ruoli; In attesa mostra gli
+              account che devono ancora essere approvati. I filtri si combinano
+              con la ricerca e restano sul server.
+            </p>
+
             <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
               <p
                 aria-live="polite"
@@ -421,31 +431,45 @@ export function MembersDirectory() {
                     />
                     Aggiornamento della lista…
                   </span>
-                ) : showPendingOnly ? (
-                  `${totalResults} account in attesa`
                 ) : hasSearch ? (
+                  filter === "all"
+                    ? `${totalResults} ${
+                        totalResults === 1
+                          ? "iscritto trovato"
+                          : "iscritti trovati"
+                      } su ${totalMembers}`
+                    : `${totalResults} ${
+                        totalResults === 1 ? "risultato" : "risultati"
+                      } con il filtro ${activeFilter.label}`
+                ) : filter === "pending" ? (
+                  `${totalResults} account in attesa`
+                ) : filter === "admins" ? (
                   `${totalResults} ${
                     totalResults === 1
-                      ? "iscritto trovato"
-                      : "iscritti trovati"
-                  } su ${totalMembers}`
+                      ? "amministratore"
+                      : "amministratori"
+                  }`
+                ) : filter === "users" ? (
+                  `${totalResults} ${
+                    totalResults === 1 ? "utente" : "utenti"
+                  }`
                 ) : (
                   `Mostrando ${rangeStart}–${rangeEnd} di ${totalResults} ${
                     totalResults === 1 ? "iscritto" : "iscritti"
                   }`
                 )}
               </p>
-              {query || showPendingOnly ? (
+              {query || filter !== "all" ? (
                 <button
                   className="rounded text-sm font-semibold text-emerald-700 transition hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
                   onClick={() => {
                     setQuery("");
-                    setShowPendingOnly(false);
+                    setFilter("all");
                     setPage(1);
                   }}
                   type="button"
                 >
-                  {showPendingOnly ? "Mostra tutti" : "Azzera ricerca"}
+                  Azzera filtri
                 </button>
               ) : null}
             </div>
@@ -543,34 +567,44 @@ export function MembersDirectory() {
                 className={emptyStateSecondaryActionClass}
                 onClick={() => {
                   setQuery("");
-                  setShowPendingOnly(false);
+                  setFilter("all");
                   setPage(1);
                 }}
                 type="button"
               >
-                {showPendingOnly && !hasSearch
-                  ? "Mostra tutti gli iscritti"
-                  : "Azzera ricerca"}
+                {hasSearch ? "Azzera ricerca e filtri" : "Mostra tutti gli iscritti"}
               </button>
             }
             className="mt-6"
             description={
-              showPendingOnly && !hasSearch
-                ? "Tutte le richieste di registrazione sono state gestite. I nuovi account compariranno qui finché non vengono approvati o rifiutati."
-                : `Non ci sono risultati per “${query.trim()}”. Controlla l’ortografia o prova con un cognome, una parte del nome o il luogo di servizio.`
+              hasSearch
+                ? filter === "all"
+                  ? `Non ci sono risultati per “${query.trim()}”. Controlla l’ortografia o prova con un cognome, una parte del nome o il luogo di servizio.`
+                  : `Non ci sono risultati per “${query.trim()}” con il filtro ${activeFilter.label}. Prova ad azzerare la ricerca o a scegliere Tutti.`
+                : filter === "pending"
+                  ? "Tutte le richieste di registrazione sono state gestite. I nuovi account compariranno qui finché non vengono approvati o rifiutati."
+                  : filter === "admins"
+                    ? "Nessun account corrisponde al filtro Amministratori. Puoi assegnare il ruolo dalla scheda di un socio approvato."
+                    : "Nessun account corrisponde al filtro Utenti. Gli amministratori sono esclusi da questa vista."
             }
             hint={
-              showPendingOnly && !hasSearch
-                ? "Gli iscritti già approvati restano visibili nella lista completa."
-                : "Suggerimento: la ricerca non distingue maiuscole e minuscole. Prova ad esempio con “Belluno” o con le prime lettere del cognome."
+              hasSearch
+                ? "Suggerimento: la ricerca non distingue maiuscole e minuscole. Prova ad esempio con “Belluno” o con le prime lettere del cognome."
+                : filter === "pending"
+                  ? "Gli iscritti già approvati restano visibili nella lista completa."
+                  : "Usa Tutti per rivedere l’intera directory."
             }
             icon={<SearchIcon className="h-6 w-6" />}
             title={
-              showPendingOnly && !hasSearch
-                ? "Nessun account in attesa"
-                : "Nessun iscritto trovato"
+              hasSearch
+                ? "Nessun iscritto trovato"
+                : filter === "pending"
+                  ? "Nessun account in attesa"
+                  : filter === "admins"
+                    ? "Nessun amministratore"
+                    : "Nessun utente"
             }
-            tone={showPendingOnly && !hasSearch ? "emerald" : "neutral"}
+            tone={hasSearch ? "neutral" : "emerald"}
           />
         ) : null}
 

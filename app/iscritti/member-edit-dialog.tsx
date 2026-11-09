@@ -24,7 +24,9 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import {
+  formatAdminRoleError,
   formatProfileError,
+  promoteToAdmin,
   updateMemberApproval,
   updateMemberProfile,
   type ApprovalStatus,
@@ -49,6 +51,7 @@ import {
   TrashIcon,
   XIcon,
 } from "@/components/icons";
+import { RevokeAdminDialog } from "./revoke-admin-dialog";
 
 type MemberEditDialogProps = {
   member: Member;
@@ -155,16 +158,24 @@ export function MemberEditDialog({
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(
     null,
   );
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [isPromotingAdmin, setIsPromotingAdmin] = useState(false);
+  const [isRevokeConfirmOpen, setIsRevokeConfirmOpen] = useState(false);
 
   const isSelf = currentUserId === member.id;
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    fullNameInputRef.current?.focus();
+
+    if (!isRevokeConfirmOpen) {
+      fullNameInputRef.current?.focus();
+    }
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+      // The revoke confirmation is a separate topmost dialog and handles its
+      // own Escape key. Do not close the edit dialog underneath it.
+      if (event.key === "Escape" && !isRevokeConfirmOpen) onClose();
     }
 
     document.addEventListener("keydown", handleKeyDown);
@@ -173,7 +184,7 @@ export function MemberEditDialog({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onClose]);
+  }, [onClose, isRevokeConfirmOpen]);
 
   function updateField<K extends keyof FormValues>(
     field: K,
@@ -295,6 +306,43 @@ export function MemberEditDialog({
     onSaved(updatedMember);
   }
 
+  async function handlePromoteAdmin() {
+    if (
+      member.is_admin ||
+      member.approval_status !== "approved" ||
+      isPromotingAdmin ||
+      isSaving
+    ) {
+      return;
+    }
+
+    setAdminError(null);
+    setIsPromotingAdmin(true);
+
+    const { member: updatedMember, error: promoteError } =
+      await promoteToAdmin(member.id);
+
+    if (promoteError || !updatedMember) {
+      // The database owns the four-administrator cap. Surface its message
+      // verbatim instead of pre-hiding the action from a stale client count.
+      setAdminError(
+        formatAdminRoleError(
+          promoteError ?? "Impossibile assegnare il ruolo. Riprova.",
+        ),
+      );
+      setIsPromotingAdmin(false);
+      return;
+    }
+
+    setIsPromotingAdmin(false);
+    onSaved(updatedMember);
+  }
+
+  function handleRevoked(updatedMember: Member) {
+    setIsRevokeConfirmOpen(false);
+    onSaved(updatedMember);
+  }
+
   async function handleExport(format: ExportFormat) {
     if (exportingFormat) return;
 
@@ -321,6 +369,7 @@ export function MemberEditDialog({
   const approvalTone = APPROVAL_TONES[member.approval_status];
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/50 backdrop-blur-sm sm:items-center sm:p-6"
       onMouseDown={(event) => {
@@ -459,6 +508,85 @@ export function MemberEditDialog({
                 >
                   <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{approvalError}</span>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-sky-200 bg-sky-50/60 p-4 dark:border-sky-900 dark:bg-sky-950/30">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300">
+              <ShieldCheckIcon className="h-4.5 w-4.5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-sky-950 dark:text-sky-100">
+                  Gestione amministratore
+                </p>
+                <span className="inline-flex items-center rounded-full border border-sky-300 bg-sky-100 px-2.5 py-1 text-xs font-semibold text-sky-800 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300">
+                  {member.is_admin ? "Amministratore" : "Utente"}
+                </span>
+              </div>
+              <p className="mt-1 text-sm leading-6 text-sky-900 dark:text-sky-200">
+                Il ruolo di amministratore si assegna e si revoca solo da qui,
+                separatamente dai dati anagrafici e dall’approvazione. Possono
+                esistere al massimo 4 amministratori.
+              </p>
+
+              {member.is_admin ? (
+                isSelf ? (
+                  <p className="mt-3 text-sm leading-6 text-sky-900 dark:text-sky-200">
+                    Non puoi revocare il tuo stesso ruolo di amministratore. Se
+                    serve, chiedi a un altro amministratore.
+                  </p>
+                ) : (
+                  <button
+                    className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl border border-red-300 bg-white px-3.5 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-zinc-950 dark:text-red-300 dark:hover:bg-red-950/40"
+                    disabled={isSaving}
+                    onClick={() => {
+                      setAdminError(null);
+                      setIsRevokeConfirmOpen(true);
+                    }}
+                    type="button"
+                  >
+                    <ShieldCheckIcon className="h-4 w-4" />
+                    Revoca ruolo amministratore
+                  </button>
+                )
+              ) : member.approval_status === "approved" ? (
+                <button
+                  className="mt-3 inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-sky-600 dark:hover:bg-sky-500"
+                  disabled={isPromotingAdmin || isSaving}
+                  onClick={handlePromoteAdmin}
+                  type="button"
+                >
+                  {isPromotingAdmin ? (
+                    <span
+                      aria-hidden="true"
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                    />
+                  ) : (
+                    <ShieldCheckIcon className="h-4 w-4" />
+                  )}
+                  {isPromotingAdmin
+                    ? "Promozione…"
+                    : "Promuovi ad amministratore"}
+                </button>
+              ) : (
+                <p className="mt-3 text-sm leading-6 text-sky-900 dark:text-sky-200">
+                  Approva prima l’account per poter assegnare il ruolo di
+                  amministratore.
+                </p>
+              )}
+
+              {adminError ? (
+                <div
+                  className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  role="alert"
+                >
+                  <AlertCircleIcon className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{adminError}</span>
                 </div>
               ) : null}
             </div>
@@ -744,5 +872,15 @@ export function MemberEditDialog({
         </div>
       </div>
     </div>
+
+    {isRevokeConfirmOpen ? (
+      <RevokeAdminDialog
+        displayName={member.full_name?.trim() || "questo iscritto"}
+        memberId={member.id}
+        onClose={() => setIsRevokeConfirmOpen(false)}
+        onRevoked={handleRevoked}
+      />
+    ) : null}
+    </>
   );
 }

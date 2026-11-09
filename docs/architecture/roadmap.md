@@ -25,7 +25,7 @@ The repository contains a coherent, functioning portal; the status below describ
 | Account deletion and anonymization | Implemented in code | Requires a server-only service-role or secret key |
 | Administrator manual | Implemented | Admin-only static guide at `/admin/manuale`; must be updated with every feature or schema change |
 | Public privacy policy | Implemented | Server-rendered, cached, dynamic controller details |
-| Administrator lifecycle UI | Partial | Approval and member maintenance exist; admin promotion is SQL-only |
+| Administrator lifecycle UI | Partial | In-app promotion/revocation with a cap of 4 and self-demotion guard; pending queue and notifications remain gaps |
 | Notifications | Not implemented | Only Supabase Auth emails are sent |
 | Administrative audit trail | Not implemented | No record of approvals, deletions, exports, or edits |
 | Purchase/shop capability | Schema-only | Tables, policies, and deletion handling exist; no grants or UI |
@@ -40,7 +40,7 @@ The security-hardening migration tightened several invariants that the UI cannot
 - `events.created_by` is filled by the database and cannot be forged or changed by normal API users.
 - `profiles.full_name`, `events.title`, and `generic_requests.message` reject blank or whitespace-only values through check constraints. Legacy blank names were normalized to `NULL`; constraints were added `NOT VALID` and validated when existing data was clean.
 - The legacy `public.tests` demo table, its public `anon` read policy, and its sample data were dropped.
-- The profile triggers block non-admin changes to `is_admin`, `id`, and `approval_status`.
+- The profile triggers block non-admin changes to `is_admin`, `id`, and `approval_status`, cap administrators at four, and reject self-demotion.
 - `generic_requests` exposes only `UPDATE (status)` to the API.
 - The service role received the explicit `profiles` select grant needed by the deletion route.
 - Foreign keys and indexes support `ON DELETE SET NULL` without losing historical rows.
@@ -97,7 +97,7 @@ A second inconsistency is that `announcement_banners` is approval-gated but not 
 
 **Decision.** New sign-ups start as `pending`; existing profiles were grandfathered as `approved`. `is_current_user_approved()` returns true for administrators regardless of their stored status, and the client mirrors that rule. The `profiles` select policy always allows a member to read their own row, even while pending or rejected. Approval changes are protected by a trigger that blocks non-admin self-approval.
 
-**Consequences.** The system avoids the classic "no admin can approve anyone" failure. It also means administrator status is a powerful escape hatch: if an administrator account is compromised, the approval flag is not an additional barrier. The absence of a dedicated administrator-management UI keeps the attack surface small, but it also makes promotion an operational SQL procedure rather than a product feature.
+**Consequences.** The system avoids the classic "no admin can approve anyone" failure. It also means administrator status is a powerful escape hatch: if an administrator account is compromised, the approval flag is not an additional barrier. Promotion and revocation now happen in-app from `/iscritti`, but they remain deliberately narrow: the database caps the group at four administrators and rejects self-demotion, and the existing trigger still blocks non-admin role changes. The remaining lifecycle gaps are the pending-registration queue, notifications, and the audit trail.
 
 ### 4.5 Database-owned authorship and text integrity
 
@@ -186,7 +186,7 @@ The highest engineering return would come from running a real Postgres/Supabase 
 - own versus other rows for profiles, events, responses, requests, consent, and announcements;
 - consent-version changes and approval-status changes;
 - self-export, cross-member export, self-deletion, and cross-member deletion;
-- trigger behavior for `created_by`, `is_admin`, `approval_status`, `accepted_at`, blank text, and `SET NULL`;
+- trigger behavior for `created_by`, `is_admin` (including the four-administrator cap and self-demotion), `approval_status`, `accepted_at`, blank text, and `SET NULL`;
 - the exact `42501`/`PGRST` error paths the UI translates.
 
 This can be implemented with pgTAP or SQL fixtures plus a test runner, or with an ephemeral Supabase stack and API-level tests using real JWTs. The important outcome is not a particular tool; it is that a policy regression fails CI before it reaches production.
@@ -204,9 +204,9 @@ This is also a privacy safeguard: a member asking "who accessed or deleted my da
 
 ### 5.4 Complete the administrator lifecycle and member communications
 
-The current admin model works but depends on SQL for promotion and on manual observation for pending registrations. High-value product work includes:
+In-app administrator promotion and revocation are **implemented** in `/iscritti`: an administrator can promote an approved member or revoke the role, the database caps the group at four administrators, and self-demotion is rejected. The remaining work in this area is:
 
-- an administrator-management screen for promoting and demoting members, protected by stronger confirmation and audit logging;
+- ~~an administrator-management screen for promoting and demoting members~~ **Implemented in-app**; deeper confirmation already exists for revocation, and audit logging remains roadmap 5.3;
 - a dedicated pending-registration queue with approve/reject actions and a reason field;
 - email notifications for approval, rejection, event changes, and announcements, backed by custom SMTP;
 - optional in-app notifications so the portal does not depend on email deliverability;

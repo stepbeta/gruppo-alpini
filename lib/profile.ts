@@ -51,10 +51,67 @@ export type Member = Pick<
   | "approval_status"
 >;
 
+/** Directory chips. Each value maps to a server-side PostgREST filter. */
+export type MembersFilter = "all" | "admins" | "users" | "pending";
+
+export const MEMBER_FILTERS: ReadonlyArray<{
+  value: MembersFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Tutti" },
+  { value: "admins", label: "Amministratori" },
+  { value: "users", label: "Utenti" },
+  { value: "pending", label: "In attesa" },
+];
+
+export type MembersFilterCriteria = {
+  isAdmin?: boolean;
+  approvalStatus?: ApprovalStatus;
+};
+
+/**
+ * Maps a directory chip to the filters applied by PostgREST.
+ *
+ * `users` deliberately means `is_admin = false`, not "everyone who is not an
+ * administrator", because the column is non-null with a false default.
+ */
+export function getMembersFilterCriteria(
+  filter: MembersFilter = "all",
+): MembersFilterCriteria {
+  switch (filter) {
+    case "admins":
+      return { isAdmin: true };
+    case "users":
+      return { isAdmin: false };
+    case "pending":
+      return { approvalStatus: "pending" };
+    default:
+      return {};
+  }
+}
+
+export type MembersQueryCriteria = MembersFilterCriteria & {
+  search: string;
+};
+
+/**
+ * Composes the active chip with the optional text search. Both conditions are
+ * applied together by `fetchMembers`; neither replaces the other.
+ */
+export function composeMembersQuery(
+  params: Pick<MembersQuery, "filter" | "search"> = {},
+): MembersQueryCriteria {
+  return {
+    ...getMembersFilterCriteria(params.filter),
+    search: params.search?.trim() ?? "",
+  };
+}
+
 export type MembersQuery = PaginationParams & {
   /** Matches the full name or the service place. */
   search?: string;
-  approvalStatus?: ApprovalStatus;
+  /** Directory chip; omitted means `all`. */
+  filter?: MembersFilter;
 };
 
 export type MembersPage = PaginationInfo & {
@@ -73,6 +130,14 @@ export const PROFILE_COLUMNS =
 
 export const MEMBER_COLUMNS =
   "id, full_name, birth_date, enlistment_year, service_place, is_admin, approval_status";
+
+/** Maximum number of administrators allowed by the database trigger. */
+export const ADMIN_LIMIT = 4;
+
+export const ADMIN_LIMIT_MESSAGE = `Limite di ${ADMIN_LIMIT} amministratori raggiunto.`;
+
+export const SELF_DEMOTION_MESSAGE =
+  "Non puoi revocare il tuo stesso ruolo di amministratore.";
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -102,6 +167,44 @@ export function formatProfileError(message: string): string {
       "I dati della scheda non rispettano i vincoli previsti. Controlla i campi e riprova.",
     invalidInput:
       "Uno dei valori inseriti non è valido. Controlla la data di nascita e l’anno di leva, poi riprova.",
+  });
+}
+
+/**
+ * Translates the dedicated administrator-role errors.
+ *
+ * The cap and self-demotion messages are already written in Italian by the
+ * database triggers. They are returned verbatim so the administrator sees the
+ * real reason instead of a generic fallback.
+ */
+export function formatAdminRoleError(message: string): string {
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes("limite di") &&
+    normalized.includes("amministratori raggiunto")
+  ) {
+    return ADMIN_LIMIT_MESSAGE;
+  }
+
+  if (normalized.includes("non puoi revocare il tuo stesso ruolo")) {
+    return SELF_DEMOTION_MESSAGE;
+  }
+
+  if (
+    normalized.includes("only administrators can change the admin flag") ||
+    normalized.includes("profiles_prevent_admin_escalation")
+  ) {
+    return "Solo un amministratore può modificare il ruolo di amministratore.";
+  }
+
+  return formatFriendlyError(message, {
+    fallback:
+      "Non è stato possibile aggiornare il ruolo di amministratore. Riprova tra poco; se il problema continua, contatta un amministratore.",
+    permission:
+      "Non hai i permessi per gestire i ruoli di amministratore. Verifica che le migrazioni Supabase siano state applicate al database.",
+    missingTable:
+      "La gestione degli amministratori non è ancora disponibile. Applica le migrazioni Supabase con npm run db:push.",
   });
 }
 
@@ -192,17 +295,22 @@ export async function fetchMembers(
   }
 
   try {
+    const criteria = composeMembersQuery(params);
     let query = supabase
       .from("profiles")
       .select(MEMBER_COLUMNS, { count: "exact" });
 
-    if (params.approvalStatus) {
-      query = query.eq("approval_status", params.approvalStatus);
+    if (criteria.approvalStatus) {
+      query = query.eq("approval_status", criteria.approvalStatus);
+    }
+
+    if (criteria.isAdmin !== undefined) {
+      query = query.eq("is_admin", criteria.isAdmin);
     }
 
     const searchFilter = buildIlikeOr(
       ["full_name", "service_place"],
-      params.search,
+      criteria.search,
     );
 
     if (searchFilter) {
@@ -389,6 +497,57 @@ export async function updateMemberApproval(
   } catch (error) {
     return { member: null, error: errorMessage(error) };
   }
+}
+
+/**
+ * Changes `is_admin` through its own mutation path.
+ *
+ * This is intentionally separate from `updateMemberProfile`: the regular
+ * four-field form must never carry `is_admin`. Only administrators pass the
+ * RLS update policy; the database trigger enforces the four-administrator cap
+ * and blocks self-demotion even if the UI is bypassed.
+ */
+async function updateMemberAdminRole(
+  memberId: string,
+  isAdmin: boolean,
+): Promise<{ member: Member | null; error: string | null }> {
+  if (!supabase) {
+    return { member: null, error: "Supabase non configurato." };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        is_admin: isAdmin,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", memberId)
+      .select(MEMBER_COLUMNS)
+      .single();
+
+    if (error) {
+      return { member: null, error: error.message };
+    }
+
+    return { member: data as Member, error: null };
+  } catch (error) {
+    return { member: null, error: errorMessage(error) };
+  }
+}
+
+/** Promotes an approved member to administrator, subject to the database cap. */
+export async function promoteToAdmin(
+  memberId: string,
+): Promise<{ member: Member | null; error: string | null }> {
+  return updateMemberAdminRole(memberId, true);
+}
+
+/** Revokes the administrator role, turning the member back into a regular user. */
+export async function demoteFromAdmin(
+  memberId: string,
+): Promise<{ member: Member | null; error: string | null }> {
+  return updateMemberAdminRole(memberId, false);
 }
 
 /**

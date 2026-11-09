@@ -212,6 +212,12 @@ const faqItems = [
           gruppo.
         </p>
         <p className="mt-3">
+          Il ruolo di amministratore non si sceglie durante la registrazione: un
+          amministratore può assegnarlo o revocarlo dalla scheda di un socio
+          approvato, entro il limite di 4. Nessun amministratore può revocare il
+          proprio ruolo.
+        </p>
+        <p className="mt-3">
           Prima di usare il portale devi accettare l’
           <Link className={inlineLinkClass} href="/privacy">
             informativa sulla privacy

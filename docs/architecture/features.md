@@ -12,7 +12,7 @@ The list screens no longer download every row. `lib/pagination.ts` normalizes pa
 
 | List | Page size | Notes |
 | --- | --- | --- |
-| Member directory | 8 | Search by `full_name` or `service_place`; administrators can restrict to `pending` |
+| Member directory | 8 | Search by `full_name` or `service_place`; chips for all, administrators, regular users, or pending |
 | Upcoming events | 5 | Independent page state from past events; ordered ascending by `event_date` |
 | Past events | 5 | Ordered descending by `event_date` |
 | Personal requests | 5 | Scoped to the signed-in member |
@@ -62,13 +62,19 @@ The approval workflow is fully usable. Administrators see pending and rejected a
 
 The profile and member-edit forms collect the birth date through a masked `gg/mm/aaaa` text field and keep the database value as an ISO calendar date. Forms disable native browser validation with `noValidate`; required fields, birth-date format, and email shape are checked by Italian client-side messages instead, so validation bubbles do not depend on the browser language.
 
-The main gaps in this area are operational: there is no self-service administrator promotion, no approval notification email, and no dedicated pending-registration queue beyond the directory filter.
+The main gaps in this area are operational: administrator promotion is now handled in-app, but there is still no approval notification email and no dedicated pending-registration queue beyond the directory filter.
 
 ### 3.2 Member directory and administrative operations
 
 `/iscritti` is protected by `AuthGuard`. Approved members see approved profiles with name, birth date, enlistment year, and service place. The search field filters by name or service place through a server-side `ILIKE` expression, and the list is paginated at eight members per page. Birth dates are edited and displayed as masked `gg/mm/aaaa` values; the database keeps the ISO calendar date.
 
-Administrators receive pending and rejected rows as well, along with status badges and a pending-count pill that filters the directory. The same pending-approvals queue is summarized by an administrator-only badge in the header (section 3.5.1). The edit dialog lets an administrator correct the four profile fields, approve or reject an account, export the member's data, or delete the member's account. The form never sends `is_admin` or `approval_status` through the profile-field update path; approval has its own explicit action and trigger protection.
+Above the list, four status chips mirror the conventions already used on `/eventi` and `/avvisi`: **Tutti**, **Amministratori**, **Utenti**, and **In attesa**. They map to server-side PostgREST conditions (`is_admin = true`, `is_admin = false`, `approval_status = 'pending'`, or no condition) and compose with the text search instead of filtering the loaded page in React. Changing a chip resets the page to 1; the existing clamping still protects against a page that becomes empty after a mutation. The chips deliberately omit live counts so the screen does not add unpaginated count queries; the administrator-only pending badge in the header remains the at-a-glance queue (section 3.5.1).
+
+Administrators receive pending and rejected rows as well, along with status badges. The same pending-approvals queue is summarized by an administrator-only badge in the header (section 3.5.1). The edit dialog lets an administrator correct the four profile fields, approve or reject an account, manage the administrator role, export the member's data, or delete the member's account. The form never sends `is_admin` or `approval_status` through the profile-field update path; approval has its own explicit action and trigger protection.
+
+A clearly separated **Gestione amministratore** section in the same dialog promotes an approved member to administrator or revokes the role. Promotion calls a dedicated `is_admin`-only mutation path and surfaces the database failure verbatim when the cap is reached; the UI never pre-hides the action from a client-side count that could be stale. Revocation opens a second confirmation dialog that lists what the member will lose: approvals, editing other profiles, event and template management, full RSVP access, the secretariat board, announcements, cross-member export/deletion, and the administrator manual. The member remains an approved regular user. On the signed-in administrator's own row the revoke action is replaced by an explanatory notice, and the database independently rejects self-demotion. Promotion and revocation reuse the loading, error, notice, and reload patterns of the approve/reject actions.
+
+The database enforces the role rules even if the client is bypassed. A `BEFORE UPDATE` trigger caps the group at four administrators and blocks self-demotion, while the existing trigger still rejects any `is_admin` change from a non-administrator. Section 2.5 documents the helper and trigger ordering.
 
 The directory also exposes a defence-in-depth detail: the `profiles` select policy lets a pending account read its own row but not other profiles. This is what allows the approval holding screen to work without opening the directory.
 

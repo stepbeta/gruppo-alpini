@@ -47,7 +47,7 @@ import {
 } from "@/components/icons";
 
 /** Update this date whenever the manual changes. */
-const MANUAL_LAST_UPDATED = "8 novembre 2026";
+const MANUAL_LAST_UPDATED = "9 novembre 2026";
 
 type ManualIcon = ComponentType<{ className?: string }>;
 
@@ -83,7 +83,7 @@ const MANUAL_SECTIONS: Array<{
   {
     id: "iscritti",
     title: "Iscritti e approvazioni",
-    summary: "Approvare account, correggere schede, esportare o eliminare.",
+    summary: "Approvare account, gestire ruoli, correggere schede, esportare o eliminare.",
     icon: ShieldCheckIcon,
   },
   {
@@ -163,7 +163,7 @@ const ROLES: Array<{
     name: "Amministratore",
     label: "Accesso completo",
     description:
-      "Ha tutte le funzioni dei soci e in più gestisce approvazioni, iscritti, eventi, modelli, richieste e avvisi.",
+      "Ha tutte le funzioni dei soci e in più gestisce approvazioni, ruoli, iscritti, eventi, modelli, richieste e avvisi.",
     tone: "admin",
   },
 ];
@@ -586,6 +586,7 @@ export function AdminManual() {
               <ManualList
                 items={[
                   "Approvare o rifiutare nuovi account e correggere le schede dei soci.",
+                  "Promuovere un socio approvato ad amministratore o revocargli il ruolo, entro il limite di 4.",
                   "Creare, modificare ed eliminare eventi e modelli evento.",
                   "Leggere le adesioni agli eventi e i nominativi dei soci.",
                   "Seguire le richieste inviate alla segreteria e cambiarne lo stato.",
@@ -597,7 +598,7 @@ export function AdminManual() {
           </ManualSection>
 
           <ManualSection
-            description="Approvazioni, correzioni delle schede e gestione degli account."
+            description="Approvazioni, ruoli di amministratore, correzioni delle schede e gestione degli account."
             icon={ShieldCheckIcon}
             id="iscritti"
             isHidden={isSectionHidden("iscritti")}
@@ -610,6 +611,19 @@ export function AdminManual() {
             </p>
 
             <div>
+              <SectionHeading>Filtrare la lista</SectionHeading>
+              <p className="mt-2">
+                Sopra l’elenco trovi i chip <strong>Tutti</strong>,{" "}
+                <strong>Amministratori</strong>, <strong>Utenti</strong> e{" "}
+                <strong>In attesa</strong>. Amministratori mostra chi ha il
+                ruolo; Utenti mostra i soci senza ruolo; In attesa mostra gli
+                account da approvare o rifiutare. I chip si combinano con la
+                ricerca per nome o luogo di servizio e riportano sempre alla
+                prima pagina quando cambiano.
+              </p>
+            </div>
+
+            <div>
               <SectionHeading>Approvare o rifiutare una richiesta</SectionHeading>
               <ol className="mt-3 list-decimal space-y-2 pl-5">
                 <li>
@@ -618,8 +632,8 @@ export function AdminManual() {
                 </li>
                 <li>
                   Controlla il badge arancione accanto a <strong>Iscritti</strong>{" "}
-                  nel menu (o sulla scheda della pagina iniziale), poi usa il
-                  filtro <strong>In attesa</strong> nel tabellone.
+                  nel menu (o sulla scheda della pagina iniziale), poi scegli il
+                  chip <strong>In attesa</strong>.
                 </li>
                 <li>Cerca la persona per nome o luogo di servizio, se necessario.</li>
                 <li>Premi <strong>Modifica</strong> sulla scheda interessata.</li>
@@ -638,6 +652,42 @@ export function AdminManual() {
               La scheda del tuo account non mostra i pulsanti di approvazione.
               È una protezione voluta: evita che un amministratore possa
               sbloccarsi o bloccarsi da solo per errore.
+            </ManualNote>
+
+            <div>
+              <SectionHeading>Gestire il ruolo di amministratore</SectionHeading>
+              <p className="mt-2">
+                Nella scheda di un socio approvato trovi la sezione{" "}
+                <strong>Gestione amministratore</strong>, separata dai dati
+                anagrafici e dall’approvazione. Premi{" "}
+                <strong>Promuovi ad amministratore</strong> per assegnare il
+                ruolo. Non è possibile superare il limite di{" "}
+                <strong>4 amministratori</strong>: se il gruppo è già al
+                completo, il database rifiuta l’operazione e mostra il messaggio
+                del limite.
+              </p>
+              <p className="mt-2">
+                Per revocare il ruolo premi{" "}
+                <strong>Revoca ruolo amministratore</strong> e conferma nel
+                dialogo successivo. La conferma elenca le funzioni che il socio
+                perderà: approvazioni, modifica delle schede altrui, gestione di
+                eventi e modelli, lettura completa delle adesioni, bacheca delle
+                richieste, avvisi, esportazione o eliminazione di altri account
+                e manuale amministratore. Il socio resta un utente approvato e
+                mantiene l’accesso normale al portale.
+              </p>
+              <p className="mt-2">
+                Un account ancora in attesa o rifiutato non può essere promosso:
+                prima va approvato. Puoi promuovere solo soci già approvati.
+              </p>
+            </div>
+
+            <ManualNote title="Non puoi revocare il tuo stesso ruolo" tone="warning">
+              Nella tua scheda il pulsante di revoca è sostituito da un avviso.
+              Anche il database rifiuta la revoca del proprio ruolo: se serve un
+              cambio, deve farlo un altro amministratore. Revocare un ruolo (o
+              eliminare un amministratore) libera un posto per una futura
+              promozione.
             </ManualNote>
 
             <div>
