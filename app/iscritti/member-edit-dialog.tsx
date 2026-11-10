@@ -29,6 +29,7 @@ import {
   promoteToAdmin,
   updateMemberApproval,
   updateMemberProfile,
+  validateEnlistmentYear,
   type ApprovalStatus,
   type Member,
 } from "@/lib/profile";
@@ -239,26 +240,14 @@ export function MemberEditDialog({
       }
     }
 
-    let enlistmentYear: number | null = null;
-    const yearText = values.enlistment_year.trim();
+    const yearValidation = validateEnlistmentYear(values.enlistment_year);
 
-    if (yearText) {
-      const parsedYear = Number(yearText);
-      const maxYear = new Date().getFullYear();
-
-      if (
-        !Number.isInteger(parsedYear) ||
-        parsedYear < 1900 ||
-        parsedYear > maxYear
-      ) {
-        setError(
-          `Inserisci un anno di leva a quattro cifre compreso tra 1900 e ${maxYear}. Esempio: 1985.`,
-        );
-        return;
-      }
-
-      enlistmentYear = parsedYear;
+    if (yearValidation.error) {
+      setError(yearValidation.error);
+      return;
     }
+
+    const enlistmentYear = yearValidation.enlistmentYear;
 
     setIsSaving(true);
 

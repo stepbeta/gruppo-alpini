@@ -60,7 +60,7 @@ Account creation is database-owned. The `handle_new_user` trigger inserts a `pro
 
 The approval workflow is fully usable. Administrators see pending and rejected accounts in `/iscritti`, can approve, reject, or reconsider them, and cannot change their own approval status from the dialog. `is_current_user_approved()` treats administrators as approved. The client mirrors that rule so an administrator with a bad stored status is not locked out of the UI.
 
-The profile and member-edit forms collect the birth date through a masked `gg/mm/aaaa` text field and keep the database value as an ISO calendar date. Forms disable native browser validation with `noValidate`; required fields, birth-date format, and email shape are checked by Italian client-side messages instead, so validation bubbles do not depend on the browser language.
+The profile and member-edit forms collect the birth date through a masked `gg/mm/aaaa` text field and keep the database value as an ISO calendar date. Forms disable native browser validation with `noValidate`; required fields, birth-date format, email shape, and the optional enlistment year (an integer from 1900 through the current year) are checked by Italian client-side messages instead, so validation bubbles do not depend on the browser language. Both forms share `validateEnlistmentYear` in `lib/profile.ts` so the bound and message cannot drift.
 
 The main gaps in this area are operational: administrator promotion is now handled in-app, but there is still no approval notification email and no dedicated pending-registration queue beyond the directory filter.
 

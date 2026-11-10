@@ -1,13 +1,20 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   EMPTY_ORGANIZATION_SETTINGS_FORM,
+  ORGANIZATION_SETTINGS_COLUMNS,
+  fetchOrganizationSettingsForAdmin,
   formatOrganizationSettingsError,
   formatOrganizationSettingsUpdatedAt,
   isValidEmailAddress,
   normalizeOrganizationSettingsInput,
   organizationSettingsToForm,
+  saveOrganizationSettings,
   validateOrganizationSettings,
 } from "./organization-settings";
+
+// organization-settings.ts imports the browser Supabase client. The pure
+// helpers and the missing-configuration guards are exercised here.
+vi.mock("./supabase", () => ({ supabase: null }));
 
 describe("organization settings validation", () => {
   it("requires a non-blank controller name", () => {
@@ -121,5 +128,166 @@ describe("organization settings timestamp", () => {
 
     expect(formatted).toContain("2026");
     expect(formatted).toContain("10:30");
+  });
+
+  it("treats an empty timestamp as unavailable", () => {
+    expect(formatOrganizationSettingsUpdatedAt("")).toBe("non disponibile");
+  });
+});
+
+describe("organization settings validation edge cases", () => {
+  it("requires the controller name before checking email shapes", () => {
+    expect(
+      validateOrganizationSettings({
+        ...EMPTY_ORGANIZATION_SETTINGS_FORM,
+        organization_name: "",
+        contact_email: "not-an-email",
+      }),
+    ).toBe("Inserisci il nome del titolare del trattamento.");
+  });
+
+  it("accepts valid emails surrounded by whitespace", () => {
+    expect(
+      validateOrganizationSettings({
+        organization_name: "Gruppo Alpini",
+        address: "",
+        contact_email: "  contatto@example.it  ",
+        dpo_email: "  dpo@example.it ",
+      }),
+    ).toBeNull();
+  });
+
+  it("checks the contact email before the DPO email", () => {
+    expect(
+      validateOrganizationSettings({
+        organization_name: "Gruppo Alpini",
+        address: "",
+        contact_email: "not-an-email",
+        dpo_email: "also-not-an-email",
+      }),
+    ).toContain("contatto del titolare");
+  });
+
+  it.each([
+    "a@b.c",
+    "mario.rossi+tag@example.co.uk",
+    "  mario@example.it  ",
+  ])("accepts the email shape %j", (value) => {
+    expect(isValidEmailAddress(value)).toBe(true);
+  });
+
+  it.each([
+    "",
+    "   ",
+    "plainaddress",
+    "@example.com",
+    "user@",
+    "user@example",
+    "user@@example.com",
+    "user name@example.com",
+    "user@.com",
+  ])("rejects the malformed email %j", (value) => {
+    expect(isValidEmailAddress(value)).toBe(false);
+  });
+});
+
+describe("organization settings normalization edge cases", () => {
+  it("trims every field and stores blanks as NULL", () => {
+    expect(
+      normalizeOrganizationSettingsInput({
+        organization_name: "  Gruppo Alpini  ",
+        address: "   ",
+        contact_email: "  ",
+        dpo_email: "\t\n",
+      }),
+    ).toEqual({
+      organization_name: "Gruppo Alpini",
+      address: null,
+      contact_email: null,
+      dpo_email: null,
+    });
+  });
+
+  it("preserves meaningful text with internal spaces", () => {
+    expect(
+      normalizeOrganizationSettingsInput({
+        organization_name: "Gruppo Alpini Belluno",
+        address: "Via Roma 1",
+        contact_email: "segreteria@example.it",
+        dpo_email: "dpo@example.it",
+      }),
+    ).toEqual({
+      organization_name: "Gruppo Alpini Belluno",
+      address: "Via Roma 1",
+      contact_email: "segreteria@example.it",
+      dpo_email: "dpo@example.it",
+    });
+  });
+
+  it("maps every nullable database column to an empty form field", () => {
+    expect(
+      organizationSettingsToForm({
+        id: true,
+        organization_name: "Gruppo Alpini",
+        address: null,
+        contact_email: null,
+        dpo_email: null,
+        updated_at: "2026-11-10T09:30:00Z",
+      }),
+    ).toEqual({
+      organization_name: "Gruppo Alpini",
+      address: "",
+      contact_email: "",
+      dpo_email: "",
+    });
+  });
+
+  it("documents the columns written by the administrator path", () => {
+    expect(ORGANIZATION_SETTINGS_COLUMNS).toBe(
+      "id, organization_name, address, contact_email, dpo_email, updated_at",
+    );
+  });
+});
+
+describe("organization settings error mapping edge cases", () => {
+  it("maps check constraints and invalid input to the dedicated messages", () => {
+    expect(
+      formatOrganizationSettingsError(
+        'new row violates check constraint "organization_settings_name_check"',
+      ),
+    ).toContain("vincoli previsti");
+
+    expect(
+      formatOrganizationSettingsError("invalid input syntax for type uuid"),
+    ).toContain("Uno dei valori inseriti non è valido");
+  });
+
+  it("hides unknown technical details behind the save fallback", () => {
+    expect(
+      formatOrganizationSettingsError("SQLSTATE XX000 internal error"),
+    ).toContain("Non è stato possibile salvare le impostazioni privacy");
+  });
+});
+
+describe("organization settings data access without a configured client", () => {
+  it("returns a configuration error when loading the row", async () => {
+    await expect(fetchOrganizationSettingsForAdmin()).resolves.toEqual({
+      settings: null,
+      error: "Supabase non configurato.",
+    });
+  });
+
+  it("returns a configuration error when saving the row", async () => {
+    await expect(
+      saveOrganizationSettings({
+        organization_name: "Gruppo Alpini",
+        address: null,
+        contact_email: null,
+        dpo_email: null,
+      }),
+    ).resolves.toEqual({
+      settings: null,
+      error: "Supabase non configurato.",
+    });
   });
 });

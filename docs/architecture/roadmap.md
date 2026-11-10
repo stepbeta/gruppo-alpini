@@ -49,7 +49,7 @@ The migration history also records an important operational lesson: Supabase doe
 
 ### 3.10 Quality, testing, and operational readiness
 
-The automated test suite is small and focused on pure functions. It covers the riskiest date logic thoroughly: valid and invalid Italian dates, leap years, all-day versus timed events, 24-hour boundaries, input masking, formatting, and deep-link parsing. It does not cover React components, Supabase queries, RLS policies, triggers, the export RPC, or the deletion route.
+The automated test suite focuses on pure domain logic. It covers the riskiest date logic thoroughly: valid and invalid Italian dates, leap years, all-day versus timed events, 24-hour boundaries, input masking, formatting, optional windows, and deep-link parsing. It also covers pagination and PostgREST filter composition, redirect safety, form validation, and Italian error mapping, and it asserts the query shape built by the Supabase data-access helpers through a local chainable test double. It does not execute live Supabase responses or cover React components, RLS policies, triggers, the export RPC, or the deletion route.
 
 CI verifies type generation, typecheck, lint, and tests. It does not build the application or exercise a database. Coverage is visible but not gated. The practical consequence is that a policy regression in SQL would not be caught by CI; it would require a manual test against a real Supabase project.
 

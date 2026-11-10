@@ -227,6 +227,43 @@ export function formatAdminRoleError(message: string): string {
   });
 }
 
+export type EnlistmentYearValidation = {
+  enlistmentYear: number | null;
+  error: string | null;
+};
+
+/**
+ * Validates the optional enlistment year shared by the profile and member-edit
+ * forms.
+ *
+ * The lower bound is fixed by the historical records; the upper bound defaults
+ * to the current local year. `currentYear` stays injectable so the boundary can
+ * be tested without depending on the wall clock.
+ */
+export function validateEnlistmentYear(
+  value: string,
+  currentYear = new Date().getFullYear(),
+): EnlistmentYearValidation {
+  const trimmed = value.trim();
+
+  if (!trimmed) return { enlistmentYear: null, error: null };
+
+  const parsedYear = Number(trimmed);
+
+  if (
+    !Number.isInteger(parsedYear) ||
+    parsedYear < 1900 ||
+    parsedYear > currentYear
+  ) {
+    return {
+      enlistmentYear: null,
+      error: `Inserisci un anno di leva a quattro cifre compreso tra 1900 e ${currentYear}. Esempio: 1985.`,
+    };
+  }
+
+  return { enlistmentYear: parsedYear, error: null };
+}
+
 export async function fetchProfile(
   userId: string,
 ): Promise<{ profile: Profile | null; error: string | null }> {

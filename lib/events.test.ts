@@ -1,8 +1,15 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { NETWORK_ERROR_MESSAGE, SESSION_ERROR_MESSAGE } from "./error-messages";
 import {
+  createEvent,
+  deleteEvent,
+  fetchEventById,
+  fetchEventResponses,
+  fetchEvents,
   formatAttendanceTotal,
   formatEventDate,
   formatEventDateInput,
+  formatEventError,
   getContributingGuestCount,
   getEventIdFromSearch,
   getEventSharePath,
@@ -11,15 +18,92 @@ import {
   maskItalianDateInput,
   maskItalianTimeInput,
   parseEventDateTime,
+  saveEventResponse,
   summarizeEventAttendance,
+  updateEvent,
   validateGuestCount,
   type EventAttendanceEntry,
+  type EventInput,
   type EventRecord,
 } from "./events";
 
-// events.ts imports the browser Supabase client. The functions under test are
-// pure, so replace it to keep the unit tests hermetic and free of env vars.
-vi.mock("./supabase", () => ({ supabase: null }));
+// events.ts imports the browser Supabase client. The pure functions are tested
+// with no client; the query-shape tests below swap in a chainable test double.
+const supabaseState = vi.hoisted(() => ({
+  client: null as unknown,
+}));
+
+vi.mock("./supabase", () => ({
+  get supabase() {
+    return supabaseState.client;
+  },
+}));
+
+type QueryResult = {
+  data?: unknown;
+  error?: { message: string } | null;
+  count?: number | null;
+};
+
+type QueryCall = { method: string; args: unknown[] };
+
+function createFakeSupabase(results: QueryResult[]) {
+  const calls: QueryCall[] = [];
+  let resultIndex = 0;
+
+  function createBuilder(): Record<string, unknown> {
+    const result = results[resultIndex] ?? {
+      data: null,
+      error: null,
+      count: null,
+    };
+    resultIndex += 1;
+
+    const builder: Record<string, unknown> = {};
+
+    for (const method of [
+      "select",
+      "or",
+      "order",
+      "range",
+      "eq",
+      "ilike",
+      "in",
+      "upsert",
+      "insert",
+      "update",
+      "delete",
+      "maybeSingle",
+      "single",
+    ]) {
+      builder[method] = (...args: unknown[]) => {
+        calls.push({ method, args });
+        return builder;
+      };
+    }
+
+    builder.then = (
+      onFulfilled?: ((value: QueryResult) => unknown) | null,
+      onRejected?: ((reason: unknown) => unknown) | null,
+    ) => Promise.resolve(result).then(onFulfilled, onRejected);
+
+    return builder;
+  }
+
+  const client = {
+    from: (table: string) => {
+      calls.push({ method: "from", args: [table] });
+      return createBuilder();
+    },
+  };
+
+  return { calls, client };
+}
+
+afterEach(() => {
+  supabaseState.client = null;
+  vi.useRealTimers();
+});
 
 function eventAt(eventDate: string, isAllDay = false): EventRecord {
   return {
@@ -396,5 +480,422 @@ describe("summarizeEventAttendance", () => {
     expect(formatAttendanceTotal(summary)).toBe(
       "Totale: 20 (8 soci + 12 invitati)",
     );
+  });
+});
+
+describe("formatEventError", () => {
+  it("maps network and expired-session failures", () => {
+    expect(formatEventError("Failed to fetch")).toBe(NETWORK_ERROR_MESSAGE);
+    expect(formatEventError("JWT expired")).toBe(SESSION_ERROR_MESSAGE);
+  });
+
+  it("maps permission failures to the migration hint", () => {
+    const message = formatEventError(
+      'permission denied for table "events" (SQLSTATE 42501)',
+    );
+
+    expect(message).toContain("Non hai i permessi");
+    expect(message).toContain("migrazioni Supabase");
+  });
+
+  it("maps a missing table or column to the event context", () => {
+    expect(
+      formatEventError('relation "public.events" does not exist'),
+    ).toBe("Le tabelle degli eventi non sono ancora disponibili. Verifica le migrazioni Supabase.");
+
+    expect(formatEventError('column "is_all_day" does not exist')).toBe(
+      "Le tabelle degli eventi non sono ancora disponibili. Verifica le migrazioni Supabase.",
+    );
+  });
+
+  it("maps duplicate responses and constraint failures", () => {
+    expect(formatEventError("duplicate key value violates unique constraint")).toBe(
+      "Esiste già una risposta per questo evento.",
+    );
+    expect(
+      formatEventError(
+        'new row violates check constraint "event_responses_guest_count_check"',
+      ),
+    ).toBe("Controlla i dati dell’evento: uno o più valori non sono validi.");
+  });
+
+  it("maps invalid dates and times to the event-specific hint", () => {
+    expect(
+      formatEventError(
+        'invalid input syntax for type timestamp with time zone: "not-a-date"',
+      ),
+    ).toBe(
+      "Uno dei valori inseriti non è valido. Controlla la data, l’ora e gli altri campi, poi riprova.",
+    );
+  });
+
+  it("keeps friendly validation messages and hides unknown technical details", () => {
+    expect(formatEventError("Inserisci il titolo dell’evento.")).toBe(
+      "Inserisci il titolo dell’evento.",
+    );
+    expect(formatEventError("SQLSTATE XX000 internal error")).toBe(
+      "Non è stato possibile completare l’operazione sugli eventi. Riprova tra poco; se il problema continua, contatta un amministratore.",
+    );
+  });
+});
+
+describe("formatEventDate edge cases", () => {
+  it("uses the UTC date for all-day events even near UTC midnight", () => {
+    expect(formatEventDate("2026-03-14T23:30:00.000Z", true)).toBe(
+      "14/03/2026",
+    );
+    expect(formatEventDate("2026-03-14", true)).toBe("14/03/2026");
+  });
+
+  it("zero-pads local midnight and single-digit components", () => {
+    const midnight = new Date(2026, 0, 5, 0, 0);
+
+    expect(formatEventDate(midnight.toISOString())).toBe(
+      "05/01/2026 00:00",
+    );
+  });
+
+  it("reports invalid all-day values too", () => {
+    expect(formatEventDate("not-a-date", true)).toBe("Data non valida");
+  });
+
+  it("returns empty fields for an invalid all-day value", () => {
+    expect(formatEventDateInput("not-a-date", true)).toEqual({
+      date: "",
+      time: "",
+    });
+  });
+});
+
+describe("event data access without a configured client", () => {
+  it("returns a normalized empty page for a missing client", async () => {
+    await expect(
+      fetchEvents({
+        scope: "upcoming",
+        page: 0,
+        pageSize: 1_000,
+        search: "pranzo",
+      }),
+    ).resolves.toEqual({
+      events: [],
+      page: 1,
+      pageSize: 100,
+      total: 0,
+      pageCount: 0,
+      error: "Supabase non configurato.",
+    });
+  });
+
+  it("keeps an explicit valid page and page size", async () => {
+    await expect(
+      fetchEvents({ scope: "past", page: 3, pageSize: 8 }),
+    ).resolves.toEqual({
+      events: [],
+      page: 3,
+      pageSize: 8,
+      total: 0,
+      pageCount: 0,
+      error: "Supabase non configurato.",
+    });
+  });
+
+  it("returns configuration errors for single-event reads and writes", async () => {
+    await expect(fetchEventById("event-1")).resolves.toEqual({
+      event: null,
+      error: "Supabase non configurato.",
+    });
+
+    await expect(
+      createEvent({
+        title: "Pranzo",
+        description: null,
+        location: null,
+        event_date: "2026-05-10T17:00:00.000Z",
+        is_all_day: false,
+      }),
+    ).resolves.toEqual({ event: null, error: "Supabase non configurato." });
+
+    const values: EventInput = {
+      title: "Pranzo",
+      description: null,
+      location: null,
+      event_date: "2026-05-10T17:00:00.000Z",
+      is_all_day: false,
+    };
+
+    await expect(updateEvent("event-1", values)).resolves.toEqual({
+      event: null,
+      error: "Supabase non configurato.",
+    });
+    await expect(deleteEvent("event-1")).resolves.toEqual({
+      error: "Supabase non configurato.",
+    });
+  });
+
+  it("skips the responses query when there are no ids", async () => {
+    await expect(fetchEventResponses([])).resolves.toEqual({
+      responses: [],
+      error: null,
+    });
+    await expect(fetchEventResponses([""])).resolves.toEqual({
+      responses: [],
+      error: null,
+    });
+    await expect(fetchEventResponses(["event-1"])).resolves.toEqual({
+      responses: [],
+      error: "Supabase non configurato.",
+    });
+  });
+
+  it("validates the guest count before contacting the client", async () => {
+    await expect(
+      saveEventResponse("event-1", "member-1", "present", -1),
+    ).resolves.toEqual({
+      response: null,
+      error:
+        "Il numero di invitati deve essere un numero intero pari o superiore a 0.",
+    });
+
+    await expect(
+      saveEventResponse("event-1", "member-1", "present", 2),
+    ).resolves.toEqual({
+      response: null,
+      error: "Supabase non configurato.",
+    });
+  });
+});
+
+const EVENT_COLUMNS =
+  "id, title, description, location, event_date, is_all_day, created_by, created_at";
+
+describe("event query composition", () => {
+  it("builds the upcoming filter, search, ordering, and inclusive range", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 2, 14, 12, 0, 0));
+
+    const now = new Date();
+    const startOfTodayUtc = Date.UTC(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+    const allDayCutoff = new Date(startOfTodayUtc).toISOString();
+    const { calls, client } = createFakeSupabase([
+      { data: [], error: null, count: 42 },
+    ]);
+    supabaseState.client = client;
+
+    const page = await fetchEvents({
+      scope: "upcoming",
+      page: 2,
+      pageSize: 8,
+      search: "  Pranzo  ",
+    });
+
+    expect(calls).toEqual([
+      { method: "from", args: ["events"] },
+      {
+        method: "select",
+        args: [EVENT_COLUMNS, { count: "exact" }],
+      },
+      {
+        method: "or",
+        args: [
+          `and(is_all_day.eq.true,event_date.gte.${allDayCutoff}),and(is_all_day.eq.false,event_date.gte.${now.toISOString()})`,
+        ],
+      },
+      {
+        method: "or",
+        args: [
+          "title.ilike.%Pranzo%,location.ilike.%Pranzo%,description.ilike.%Pranzo%",
+        ],
+      },
+      { method: "order", args: ["event_date", { ascending: true }] },
+      { method: "order", args: ["id", { ascending: true }] },
+      { method: "range", args: [8, 15] },
+    ]);
+    expect(page.total).toBe(42);
+    expect(page.pageCount).toBe(6);
+  });
+
+  it("builds the past filter without a search expression", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 2, 14, 12, 0, 0));
+
+    const now = new Date();
+    const allDayCutoff = new Date(
+      Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()),
+    ).toISOString();
+    const { calls, client } = createFakeSupabase([
+      { data: [], error: null, count: null },
+    ]);
+    supabaseState.client = client;
+
+    const page = await fetchEvents({ scope: "past", page: 1, pageSize: 10 });
+
+    expect(calls).toEqual([
+      { method: "from", args: ["events"] },
+      {
+        method: "select",
+        args: [EVENT_COLUMNS, { count: "exact" }],
+      },
+      {
+        method: "or",
+        args: [
+          `and(is_all_day.eq.true,event_date.lt.${allDayCutoff}),and(is_all_day.eq.false,event_date.lt.${now.toISOString()})`,
+        ],
+      },
+      { method: "order", args: ["event_date", { ascending: false }] },
+      { method: "order", args: ["id", { ascending: false }] },
+      { method: "range", args: [0, 9] },
+    ]);
+    expect(page.total).toBe(0);
+    expect(page.pageCount).toBe(0);
+  });
+
+  it("returns the error without inventing rows or counts", async () => {
+    const { client } = createFakeSupabase([
+      { data: null, error: { message: "boom" }, count: null },
+    ]);
+    supabaseState.client = client;
+
+    await expect(
+      fetchEvents({ scope: "upcoming", page: 1, pageSize: 10 }),
+    ).resolves.toEqual({
+      events: [],
+      page: 1,
+      pageSize: 10,
+      total: 0,
+      pageCount: 0,
+      error: "boom",
+    });
+  });
+
+  it("reads a single event by id with maybeSingle", async () => {
+    const event = eventAt("2026-05-10T17:00:00.000Z");
+    const { calls, client } = createFakeSupabase([
+      { data: event, error: null, count: null },
+    ]);
+    supabaseState.client = client;
+
+    await expect(fetchEventById("event-1")).resolves.toEqual({
+      event,
+      error: null,
+    });
+    expect(calls).toEqual([
+      { method: "from", args: ["events"] },
+      { method: "select", args: [EVENT_COLUMNS] },
+      { method: "eq", args: ["id", "event-1"] },
+      { method: "maybeSingle", args: [] },
+    ]);
+  });
+
+  it("deduplicates and drops empty event ids before the in filter", async () => {
+    const { calls, client } = createFakeSupabase([
+      { data: [], error: null, count: null },
+    ]);
+    supabaseState.client = client;
+
+    await fetchEventResponses(["event-b", "event-a", "event-b", ""]);
+
+    expect(calls).toEqual([
+      { method: "from", args: ["event_responses"] },
+      {
+        method: "select",
+        args: ["id, event_id, user_id, status, guest_count, updated_at"],
+      },
+      { method: "in", args: ["event_id", ["event-b", "event-a"]] },
+    ]);
+  });
+
+  it("sends the validated guest count and conflict key on upsert", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 4, 10, 17, 0, 0));
+
+    const response = {
+      id: "response-1",
+      event_id: "event-1",
+      user_id: "member-1",
+      status: "present" as const,
+      guest_count: 2,
+      updated_at: new Date().toISOString(),
+    };
+    const { calls, client } = createFakeSupabase([
+      { data: response, error: null, count: null },
+    ]);
+    supabaseState.client = client;
+
+    await saveEventResponse("event-1", "member-1", "present", 2);
+
+    expect(calls[0]).toEqual({ method: "from", args: ["event_responses"] });
+    expect(calls[1]).toEqual({
+      method: "upsert",
+      args: [
+        {
+          event_id: "event-1",
+          user_id: "member-1",
+          status: "present",
+          guest_count: 2,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "event_id,user_id" },
+      ],
+    });
+    expect(calls.map((call) => call.method)).toEqual([
+      "from",
+      "upsert",
+      "select",
+      "single",
+    ]);
+  });
+
+  it("builds create, update, and delete mutations without writing created_by", async () => {
+    const values: EventInput = {
+      title: "Pranzo",
+      description: null,
+      location: "Sede",
+      event_date: "2026-05-10T17:00:00.000Z",
+      is_all_day: false,
+    };
+    const event = eventAt(values.event_date);
+
+    const createDouble = createFakeSupabase([
+      { data: event, error: null, count: null },
+    ]);
+    supabaseState.client = createDouble.client;
+    await createEvent(values);
+    expect(createDouble.calls).toEqual([
+      { method: "from", args: ["events"] },
+      { method: "insert", args: [values] },
+      { method: "select", args: [EVENT_COLUMNS] },
+      { method: "single", args: [] },
+    ]);
+    expect(
+      (createDouble.calls[1].args[0] as Record<string, unknown>).created_by,
+    ).toBeUndefined();
+
+    const updateDouble = createFakeSupabase([
+      { data: event, error: null, count: null },
+    ]);
+    supabaseState.client = updateDouble.client;
+    await updateEvent("event-1", values);
+    expect(updateDouble.calls).toEqual([
+      { method: "from", args: ["events"] },
+      { method: "update", args: [values] },
+      { method: "eq", args: ["id", "event-1"] },
+      { method: "select", args: [EVENT_COLUMNS] },
+      { method: "single", args: [] },
+    ]);
+
+    const deleteDouble = createFakeSupabase([
+      { data: null, error: null, count: null },
+    ]);
+    supabaseState.client = deleteDouble.client;
+    await deleteEvent("event-1");
+    expect(deleteDouble.calls).toEqual([
+      { method: "from", args: ["events"] },
+      { method: "delete", args: [] },
+      { method: "eq", args: ["id", "event-1"] },
+    ]);
   });
 });
