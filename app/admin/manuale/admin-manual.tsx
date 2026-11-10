@@ -47,7 +47,7 @@ import {
 } from "@/components/icons";
 
 /** Update this date whenever the manual changes. */
-const MANUAL_LAST_UPDATED = "9 novembre 2026";
+const MANUAL_LAST_UPDATED = "10 novembre 2026";
 
 type ManualIcon = ComponentType<{ className?: string }>;
 
@@ -804,6 +804,19 @@ export function AdminManual() {
                 come <strong>Socio eliminato</strong>: il dato storico resta
                 valido. Nelle schede eventi puoi anche vedere quanti soci
                 approvati non hanno ancora risposto.
+              </p>
+              <p className="mt-3">
+                Ogni socio può indicare quanti <strong>invitati</strong> porta
+                con sé. Il numero è modificabile solo dal socio interessato e
+                solo per gli eventi futuri; gli invitati seguono il suo stato,
+                quindi sono presenti con lui se ha scelto{" "}
+                <strong>Presente</strong> e in forse se ha scelto{" "}
+                <strong>In forse</strong>. Con <strong>Assente</strong> il numero
+                resta memorizzato ma non entra nei totali. Il riepilogo
+                amministratore mostra il totale come{" "}
+                <strong>Totale: 20 (8 soci + 12 invitati)</strong> e distingue
+                gli invitati dei presenti da quelli degli in forse. Nei nomi dei
+                soci con invitati compare il suffisso <strong>(+N)</strong>.
               </p>
             </div>
 

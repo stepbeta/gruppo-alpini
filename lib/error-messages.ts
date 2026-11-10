@@ -12,6 +12,9 @@ export const NETWORK_ERROR_MESSAGE =
 export const SESSION_ERROR_MESSAGE =
   "La sessione è scaduta. Accedi di nuovo e riprova.";
 
+export const GUEST_COUNT_ERROR_MESSAGE =
+  "Il numero di invitati deve essere un numero intero pari o superiore a 0.";
+
 type FriendlyErrorOptions = {
   /** Message used when the failure cannot be classified safely. */
   fallback: string;

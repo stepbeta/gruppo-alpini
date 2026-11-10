@@ -1,13 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  formatAttendanceTotal,
   formatEventDate,
   formatEventDateInput,
+  getContributingGuestCount,
   getEventIdFromSearch,
   getEventSharePath,
   isEventPast,
+  isPositiveResponseStatus,
   maskItalianDateInput,
   maskItalianTimeInput,
   parseEventDateTime,
+  summarizeEventAttendance,
+  validateGuestCount,
+  type EventAttendanceEntry,
   type EventRecord,
 } from "./events";
 
@@ -233,5 +239,162 @@ describe("event deep links", () => {
     expect(getEventIdFromSearch("?other=1")).toBeNull();
     expect(getEventIdFromSearch("?event=")).toBeNull();
     expect(getEventIdFromSearch("?event=%20%20")).toBeNull();
+  });
+});
+
+describe("validateGuestCount", () => {
+  it.each([0, 1, 12, 1_000_000, Number.MAX_SAFE_INTEGER])(
+    "accepts the non-negative integer %j",
+    (value) => {
+      expect(validateGuestCount(value)).toEqual({
+        guestCount: value,
+        error: null,
+      });
+    },
+  );
+
+  it.each(["0", "7", " 42 "])(
+    "accepts the numeric string %j",
+    (value) => {
+      expect(validateGuestCount(value)).toEqual({
+        guestCount: Number(value.trim()),
+        error: null,
+      });
+    },
+  );
+
+  it.each([
+    -1,
+    1.5,
+    Number.NaN,
+    Number.POSITIVE_INFINITY,
+    Number.NEGATIVE_INFINITY,
+    "",
+    " ",
+    "-1",
+    "1.5",
+    "1,5",
+    "abc",
+    "12a",
+    "1e3",
+    null,
+    undefined,
+    {},
+    [],
+  ])("rejects the invalid value %j", (value) => {
+    const result = validateGuestCount(value);
+
+    expect(result.guestCount).toBeNull();
+    expect(result.error).toMatch(/numero intero/i);
+  });
+});
+
+describe("guest status consistency", () => {
+  it("treats present and tentative as positive statuses", () => {
+    expect(isPositiveResponseStatus("present")).toBe(true);
+    expect(isPositiveResponseStatus("tentative")).toBe(true);
+    expect(isPositiveResponseStatus("absent")).toBe(false);
+  });
+
+  it("counts guests only for positive statuses", () => {
+    expect(getContributingGuestCount("present", 4)).toBe(4);
+    expect(getContributingGuestCount("tentative", 3)).toBe(3);
+    expect(getContributingGuestCount("absent", 5)).toBe(0);
+    expect(getContributingGuestCount("present", 0)).toBe(0);
+  });
+
+  it("ignores invalid guest values defensively", () => {
+    expect(getContributingGuestCount("present", -2)).toBe(0);
+    expect(getContributingGuestCount("present", 1.5)).toBe(0);
+    expect(getContributingGuestCount("tentative", Number.NaN)).toBe(0);
+    expect(getContributingGuestCount("tentative", Number.POSITIVE_INFINITY)).toBe(
+      0,
+    );
+  });
+});
+
+function attendanceEntry(
+  status: EventAttendanceEntry["status"],
+  guestCount: number,
+  userId: string | null = "member-1",
+): EventAttendanceEntry {
+  return { user_id: userId, status, guest_count: guestCount };
+}
+
+describe("summarizeEventAttendance", () => {
+  it("returns all zeroes for an event without responses", () => {
+    expect(summarizeEventAttendance([])).toEqual({
+      presentMembers: 0,
+      tentativeMembers: 0,
+      absentMembers: 0,
+      presentGuests: 0,
+      tentativeGuests: 0,
+      positiveMembers: 0,
+      totalGuests: 0,
+      totalAttendees: 0,
+    });
+  });
+
+  it("counts members and guests separately for present and tentative", () => {
+    const summary = summarizeEventAttendance([
+      attendanceEntry("present", 2, "member-a"),
+      attendanceEntry("present", 1, "member-b"),
+      attendanceEntry("tentative", 3, "member-c"),
+    ]);
+
+    expect(summary).toEqual({
+      presentMembers: 2,
+      tentativeMembers: 1,
+      absentMembers: 0,
+      presentGuests: 3,
+      tentativeGuests: 3,
+      positiveMembers: 3,
+      totalGuests: 6,
+      totalAttendees: 9,
+    });
+  });
+
+  it("keeps absent members in their own count but drops their guests", () => {
+    const summary = summarizeEventAttendance([
+      attendanceEntry("present", 2),
+      attendanceEntry("absent", 9),
+    ]);
+
+    expect(summary.absentMembers).toBe(1);
+    expect(summary.presentGuests).toBe(2);
+    expect(summary.tentativeGuests).toBe(0);
+    expect(summary.totalGuests).toBe(2);
+    expect(summary.totalAttendees).toBe(3);
+  });
+
+  it("includes responses of deleted members with user_id = NULL", () => {
+    const summary = summarizeEventAttendance([
+      attendanceEntry("present", 2, null),
+      attendanceEntry("tentative", 1, null),
+      attendanceEntry("absent", 4, null),
+    ]);
+
+    expect(summary.presentMembers).toBe(1);
+    expect(summary.tentativeMembers).toBe(1);
+    expect(summary.absentMembers).toBe(1);
+    expect(summary.presentGuests).toBe(2);
+    expect(summary.tentativeGuests).toBe(1);
+    expect(summary.totalGuests).toBe(3);
+    expect(summary.totalAttendees).toBe(5);
+  });
+
+  it("formats the administrator total in the documented shape", () => {
+    const summary = summarizeEventAttendance([
+      ...Array.from({ length: 4 }, (_, index) =>
+        attendanceEntry("present", 2, `present-${index}`),
+      ),
+      ...Array.from({ length: 4 }, (_, index) =>
+        attendanceEntry("tentative", 1, `tentative-${index}`),
+      ),
+    ]);
+
+    expect(formatAttendanceTotal(summary)).toBe(
+      "Totale: 20 (8 soci + 12 invitati)",
+    );
   });
 });

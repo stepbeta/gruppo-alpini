@@ -1,12 +1,32 @@
 "use client";
 
+/**
+ * ============================================================================
+ * CONTEXTUAL GUIDANCE — MAINTENANCE RULE
+ * ============================================================================
+ *
+ * Whenever features, workflows, validation rules, or routes are modified in
+ * the application, these contextual helpers, empty states, and error messages
+ * must be reviewed and updated simultaneously in the same pull request to keep
+ * user guidance fully aligned with the current code.
+ *
+ * In pratica: se cambi la scheda evento, le risposte di adesione o il numero
+ * di invitati, aggiorna i suggerimenti e i messaggi di errore nello stesso
+ * pull request.
+ * ============================================================================
+ */
+
 import { useEffect, useRef, useState } from "react";
 import { DELETED_MEMBER_NAME, type Member } from "@/lib/profile";
 import {
+  formatAttendanceTotal,
   formatEventDate,
   formatEventError,
   getEventSharePath,
+  isPositiveResponseStatus,
   saveEventResponse,
+  summarizeEventAttendance,
+  validateGuestCount,
   type EventRecord,
   type EventResponseRecord,
   type EventResponseStatus,
@@ -199,6 +219,11 @@ export function EventCard({
 }: EventCardProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A null draft means "show the stored value". Responses arrive asynchronously
+  // after the card mounts, so deriving the displayed value avoids an effect
+  // that would overwrite the field while the member is editing it.
+  const [guestCountDraft, setGuestCountDraft] = useState<string | null>(null);
+  const [guestError, setGuestError] = useState<string | null>(null);
   const [shareState, setShareState] = useState<ShareState>("idle");
   const shareResetTimer = useRef<number | null>(null);
 
@@ -211,6 +236,8 @@ export function EventCard({
   }, []);
 
   const formattedDate = formatEventDate(event.event_date, event.is_all_day);
+  const guestCountInput =
+    guestCountDraft ?? String(response?.guest_count ?? 0);
   const statusLabel = response
     ? RSVP_LABELS[response.status]
     : "Non hai ancora risposto";
@@ -230,13 +257,23 @@ export function EventCard({
     const memberName = item.user_id
       ? memberNames.get(item.user_id) ?? "Socio"
       : DELETED_MEMBER_NAME;
+    const guestSuffix = item.guest_count > 0 ? ` (+${item.guest_count})` : "";
 
-    namesByStatus[item.status].push(memberName);
+    namesByStatus[item.status].push(`${memberName}${guestSuffix}`);
   }
 
   for (const names of Object.values(namesByStatus)) {
     names.sort((first, second) => collator.compare(first, second));
   }
+
+  const attendanceSummary = summarizeEventAttendance(allResponses);
+  const isGuestInputEnabled =
+    !isPast && isPositiveResponseStatus(response?.status ?? "absent");
+  const parsedGuestCount = validateGuestCount(guestCountInput);
+  const guestCountForControls =
+    parsedGuestCount.error === null
+      ? parsedGuestCount.guestCount
+      : response?.guest_count ?? 0;
 
   const inactiveResponderIds = new Set(
     members
@@ -255,14 +292,15 @@ export function EventCard({
       ? null
       : Math.max(0, approvedMemberCount - respondedIds.size);
 
-  async function handleResponse(status: EventResponseStatus) {
-    if (isSaving || isPast || response?.status === status) return;
-
+  async function persistResponse(
+    status: EventResponseStatus,
+    guestCount: number,
+  ) {
     setIsSaving(true);
     setError(null);
 
     const { response: updatedResponse, error: saveError } =
-      await saveEventResponse(event.id, userId, status);
+      await saveEventResponse(event.id, userId, status, guestCount);
 
     if (saveError || !updatedResponse) {
       setError(
@@ -274,8 +312,72 @@ export function EventCard({
       return;
     }
 
+    setGuestCountDraft(String(updatedResponse.guest_count));
+    setGuestError(null);
     onResponseSaved(updatedResponse);
     setIsSaving(false);
+  }
+
+  async function handleResponse(status: EventResponseStatus) {
+    if (isSaving || isPast || response?.status === status) return;
+
+    // Positive statuses carry the current guest count, including an edit that
+    // has not been committed yet. An absent response keeps the stored value so
+    // switching back does not lose it.
+    let guestCount = response?.guest_count ?? 0;
+
+    if (isPositiveResponseStatus(status)) {
+      const validation = validateGuestCount(guestCountInput);
+
+      guestCount =
+        validation.error === null
+          ? validation.guestCount
+          : response?.guest_count ?? 0;
+    }
+
+    await persistResponse(status, guestCount);
+  }
+
+  async function handleGuestCountCommit() {
+    if (
+      isSaving ||
+      isPast ||
+      !response ||
+      !isPositiveResponseStatus(response.status)
+    ) {
+      return;
+    }
+
+    const validation = validateGuestCount(guestCountInput);
+
+    if (validation.error !== null) {
+      setGuestError(validation.error);
+      return;
+    }
+
+    setGuestError(null);
+    setGuestCountDraft(String(validation.guestCount));
+
+    if (validation.guestCount === response.guest_count) return;
+
+    await persistResponse(response.status, validation.guestCount);
+  }
+
+  function handleGuestCountStep(delta: number) {
+    if (isSaving || !isGuestInputEnabled || !response) return;
+
+    const base =
+      parsedGuestCount.error === null
+        ? parsedGuestCount.guestCount
+        : response.guest_count;
+    const next = Math.max(0, base + delta);
+
+    setGuestCountDraft(String(next));
+    setGuestError(null);
+
+    if (next !== response.guest_count) {
+      void persistResponse(response.status, next);
+    }
   }
 
   async function handleShare() {
@@ -445,6 +547,14 @@ export function EventCard({
               >
                 {statusLabel}
               </p>
+              {response &&
+              response.guest_count > 0 &&
+              isPositiveResponseStatus(response.status) ? (
+                <p className="mt-1 text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                  tu + {response.guest_count}{" "}
+                  {response.guest_count === 1 ? "invitato" : "invitati"}
+                </p>
+              ) : null}
             </div>
             {isSaving ? (
               <span className="inline-flex items-center gap-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
@@ -488,6 +598,103 @@ export function EventCard({
             </div>
           ) : null}
 
+          <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/40">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <label
+                  className="block text-sm font-semibold text-zinc-700 dark:text-zinc-300"
+                  htmlFor={`guest-count-${event.id}`}
+                >
+                  Invitati
+                </label>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-stretch overflow-hidden rounded-lg border border-zinc-300 bg-white dark:border-zinc-700 dark:bg-zinc-950">
+                    <button
+                      aria-label="Riduci il numero di invitati"
+                      className="inline-flex min-h-10 w-10 items-center justify-center text-lg font-semibold text-zinc-700 transition hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      disabled={
+                        !isGuestInputEnabled ||
+                        isSaving ||
+                        guestCountForControls <= 0
+                      }
+                      onClick={() => handleGuestCountStep(-1)}
+                      type="button"
+                    >
+                      −
+                    </button>
+                    <input
+                      aria-describedby={`guest-count-hint-${event.id}`}
+                      className="w-16 border-x border-zinc-300 bg-white px-2 py-2 text-center text-base font-semibold text-zinc-900 transition focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-600 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-50 dark:disabled:bg-zinc-900 dark:disabled:text-zinc-400"
+                      disabled={!isGuestInputEnabled || isSaving}
+                      id={`guest-count-${event.id}`}
+                      inputMode="numeric"
+                      min={0}
+                      onChange={(changeEvent) => {
+                        setGuestCountDraft(changeEvent.target.value);
+                        setGuestError(null);
+                      }}
+                      onKeyDown={(keyEvent) => {
+                        if (keyEvent.key === "Enter") {
+                          keyEvent.preventDefault();
+                          void handleGuestCountCommit();
+                        }
+                      }}
+                      pattern="[0-9]*"
+                      step={1}
+                      type="number"
+                      value={guestCountInput}
+                    />
+                    <button
+                      aria-label="Aumenta il numero di invitati"
+                      className="inline-flex min-h-10 w-10 items-center justify-center text-lg font-semibold text-zinc-700 transition hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                      disabled={!isGuestInputEnabled || isSaving}
+                      onClick={() => handleGuestCountStep(1)}
+                      type="button"
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    className="inline-flex min-h-10 items-center justify-center rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-50 dark:border-emerald-800 dark:bg-zinc-950 dark:text-emerald-300 dark:hover:bg-emerald-950/40"
+                    disabled={
+                      !isGuestInputEnabled ||
+                      isSaving ||
+                      (parsedGuestCount.error === null &&
+                        parsedGuestCount.guestCount ===
+                          response?.guest_count)
+                    }
+                    onClick={() => {
+                      void handleGuestCountCommit();
+                    }}
+                    type="button"
+                  >
+                    Salva
+                  </button>
+                </div>
+              </div>
+              <p
+                className="max-w-md text-sm leading-6 text-zinc-500 dark:text-zinc-400"
+                id={`guest-count-hint-${event.id}`}
+              >
+                {isPast
+                  ? "Evento passato: la risposta e gli invitati non sono più modificabili."
+                  : !response
+                    ? "Scegli prima Presente o In forse per indicare gli invitati."
+                    : !isPositiveResponseStatus(response.status)
+                      ? "Con Assente gli invitati restano memorizzati ma non contano nelle presenze."
+                      : "Gli invitati seguono la tua risposta: sono presenti o in forse insieme a te. Usa + e − per aggiornare subito, oppure digita il numero e premi Salva."}
+              </p>
+            </div>
+            {guestError ? (
+              <p
+                className="mt-2 text-sm font-medium text-red-700 dark:text-red-300"
+                role="alert"
+              >
+                {guestError}
+              </p>
+            ) : null}
+          </div>
+
           {error ? (
             <div
               className="mt-3 flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
@@ -513,13 +720,21 @@ export function EventCard({
               </p>
             </div>
 
+            <p className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-base font-semibold text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">
+              {formatAttendanceTotal(attendanceSummary)}
+            </p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Invitati: {attendanceSummary.presentGuests} dei presenti ·{" "}
+              {attendanceSummary.tentativeGuests} degli in forse
+            </p>
+
             <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-2 py-3 dark:border-emerald-900 dark:bg-emerald-950/30">
                 <dt className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                   Presenti
                 </dt>
                 <dd className="mt-1 text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                  {namesByStatus.present.length}
+                  {attendanceSummary.presentMembers}
                 </dd>
               </div>
               <div className="rounded-xl border border-amber-200 bg-amber-50 px-2 py-3 dark:border-amber-900 dark:bg-amber-950/30">
@@ -527,7 +742,7 @@ export function EventCard({
                   In forse
                 </dt>
                 <dd className="mt-1 text-2xl font-bold text-amber-900 dark:text-amber-100">
-                  {namesByStatus.tentative.length}
+                  {attendanceSummary.tentativeMembers}
                 </dd>
               </div>
               <div className="rounded-xl border border-zinc-200 bg-white px-2 py-3 dark:border-zinc-700 dark:bg-zinc-900">
@@ -535,7 +750,7 @@ export function EventCard({
                   Assenti
                 </dt>
                 <dd className="mt-1 text-2xl font-bold text-zinc-800 dark:text-zinc-100">
-                  {namesByStatus.absent.length}
+                  {attendanceSummary.absentMembers}
                 </dd>
               </div>
             </dl>

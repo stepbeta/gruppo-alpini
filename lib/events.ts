@@ -1,4 +1,7 @@
-import { formatFriendlyError } from "./error-messages";
+import {
+  formatFriendlyError,
+  GUEST_COUNT_ERROR_MESSAGE,
+} from "./error-messages";
 import {
   formatItalianDateInput,
   formatItalianDateTimeInput,
@@ -34,8 +37,39 @@ export type EventResponseRecord = {
   event_id: string;
   user_id: string | null;
   status: EventResponseStatus;
+  guest_count: number;
   updated_at: string;
 };
+
+/**
+ * Minimal response shape needed to aggregate attendance.
+ *
+ * `user_id` is optional because deleted members keep their historical rows
+ * with `user_id = NULL`; their members and guests still count in the totals.
+ */
+export type EventAttendanceEntry = {
+  status: EventResponseStatus;
+  guest_count: number;
+  user_id?: string | null;
+};
+
+export type EventAttendanceSummary = {
+  presentMembers: number;
+  tentativeMembers: number;
+  absentMembers: number;
+  presentGuests: number;
+  tentativeGuests: number;
+  /** Members with a positive status (`present` or `tentative`). */
+  positiveMembers: number;
+  /** Guests of positive responses only; absent guests never contribute. */
+  totalGuests: number;
+  /** Positive members plus their guests. */
+  totalAttendees: number;
+};
+
+export type GuestCountValidation =
+  | { guestCount: number; error: null }
+  | { guestCount: null; error: string };
 
 export type EventInput = {
   title: string;
@@ -67,7 +101,8 @@ export type EventsPage = PaginationInfo & {
 
 const EVENT_COLUMNS =
   "id, title, description, location, event_date, is_all_day, created_by, created_at";
-const EVENT_RESPONSE_COLUMNS = "id, event_id, user_id, status, updated_at";
+const EVENT_RESPONSE_COLUMNS =
+  "id, event_id, user_id, status, guest_count, updated_at";
 
 export const EVENT_DEEP_LINK_PARAM = "event";
 
@@ -155,6 +190,119 @@ export {
 } from "./italian-date";
 
 export type { ItalianDateTimeInput };
+
+/**
+ * Validates a guest count entered by a member or received from the database.
+ *
+ * Accepted values are non-negative integers, either as numbers or as strings
+ * containing only digits. Decimals, negatives, empty strings, `NaN`, and other
+ * non-numeric input are rejected. There is deliberately no upper limit.
+ */
+export function validateGuestCount(value: unknown): GuestCountValidation {
+  if (typeof value === "number") {
+    if (Number.isFinite(value) && Number.isInteger(value) && value >= 0) {
+      return { guestCount: value, error: null };
+    }
+
+    return { guestCount: null, error: GUEST_COUNT_ERROR_MESSAGE };
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+
+    if (/^\d+$/.test(trimmed)) {
+      const parsed = Number(trimmed);
+
+      if (Number.isFinite(parsed) && Number.isInteger(parsed)) {
+        return { guestCount: parsed, error: null };
+      }
+    }
+  }
+
+  return { guestCount: null, error: GUEST_COUNT_ERROR_MESSAGE };
+}
+
+/** Guests follow the member's status: only positive responses contribute. */
+export function isPositiveResponseStatus(
+  status: EventResponseStatus,
+): boolean {
+  return status === "present" || status === "tentative";
+}
+
+/**
+ * Returns the guest count that contributes to attendance for a response.
+ *
+ * An absent response keeps its stored count in the database, but that count
+ * is historical only and never adds to the totals.
+ */
+export function getContributingGuestCount(
+  status: EventResponseStatus,
+  guestCount: number,
+): number {
+  if (!isPositiveResponseStatus(status)) return 0;
+
+  return Number.isInteger(guestCount) && guestCount > 0 ? guestCount : 0;
+}
+
+/**
+ * Aggregates members and guests per status.
+ *
+ * Members are always counted by their own status. Guests are counted only for
+ * `present` and `tentative` responses and are reported separately for each.
+ * Rows whose `user_id` is `NULL` (deleted members) are included.
+ */
+export function summarizeEventAttendance(
+  responses: ReadonlyArray<EventAttendanceEntry>,
+): EventAttendanceSummary {
+  let presentMembers = 0;
+  let tentativeMembers = 0;
+  let absentMembers = 0;
+  let presentGuests = 0;
+  let tentativeGuests = 0;
+
+  for (const response of responses) {
+    switch (response.status) {
+      case "present":
+        presentMembers += 1;
+        presentGuests += getContributingGuestCount(
+          response.status,
+          response.guest_count,
+        );
+        break;
+      case "tentative":
+        tentativeMembers += 1;
+        tentativeGuests += getContributingGuestCount(
+          response.status,
+          response.guest_count,
+        );
+        break;
+      case "absent":
+        absentMembers += 1;
+        break;
+    }
+  }
+
+  const positiveMembers = presentMembers + tentativeMembers;
+  const totalGuests = presentGuests + tentativeGuests;
+
+  return {
+    presentMembers,
+    tentativeMembers,
+    absentMembers,
+    presentGuests,
+    tentativeGuests,
+    positiveMembers,
+    totalGuests,
+    totalAttendees: positiveMembers + totalGuests,
+  };
+}
+
+/** Formats the administrator total, e.g. `Totale: 20 (8 soci + 12 invitati)`. */
+export function formatAttendanceTotal(
+  summary: EventAttendanceSummary,
+): string {
+  return `Totale: ${summary.totalAttendees} (${summary.positiveMembers} soci + ${summary.totalGuests} invitati)`;
+}
 
 function eventTimestamp(event: EventRecord): number {
   const timestamp = new Date(event.event_date).getTime();
@@ -332,12 +480,25 @@ export async function fetchEventResponses(eventIds: string[]): Promise<{
   }
 }
 
-/** Creates or updates the signed-in member's response for one event. */
+/**
+ * Creates or updates the signed-in member's response for one event.
+ *
+ * `guestCount` is stored even when the status is `absent`, so switching back
+ * to a positive status does not lose the declared guests. Guests only
+ * contribute to attendance totals for positive statuses.
+ */
 export async function saveEventResponse(
   eventId: string,
   userId: string,
   status: EventResponseStatus,
+  guestCount: number,
 ): Promise<{ response: EventResponseRecord | null; error: string | null }> {
+  const validation = validateGuestCount(guestCount);
+
+  if (validation.error !== null) {
+    return { response: null, error: validation.error };
+  }
+
   if (!supabase) {
     return { response: null, error: "Supabase non configurato." };
   }
@@ -350,6 +511,7 @@ export async function saveEventResponse(
           event_id: eventId,
           user_id: userId,
           status,
+          guest_count: validation.guestCount,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "event_id,user_id" },

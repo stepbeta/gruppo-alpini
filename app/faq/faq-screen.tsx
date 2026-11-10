@@ -79,6 +79,13 @@ const faqItems = [
         </p>
         <ul className="mt-3 space-y-2">
           <li>
+            Se porti degli invitati, indica quanti nel campo{" "}
+            <strong>Invitati</strong>: gli invitati seguono il tuo stato, quindi
+            sono presenti con te se scegli <strong>Presente</strong> e in forse
+            se scegli <strong>In forse</strong>. Con <strong>Assente</strong> il
+            numero resta memorizzato ma non entra nel conteggio delle presenze.
+          </li>
+          <li>
             Per modificare una risposta, premi un altro stato: il salvataggio è
             immediato.
           </li>
