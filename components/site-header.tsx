@@ -10,7 +10,7 @@
  * administrator manual aligned in the same pull request.
  *
  * The navigation model lives in `lib/navigation.ts`; update it together with
- * this file. The `min-[900px]` responsive classes mirror
+ * this file. The `min-[1000px]` responsive classes mirror
  * `HEADER_NAV_BREAKPOINT_PX`.
  * ============================================================================
  */
@@ -52,6 +52,7 @@ import {
   MailIcon,
   MegaphoneIcon,
   MenuIcon,
+  SettingsIcon,
   UserIcon,
   UsersIcon,
   XIcon,
@@ -65,6 +66,7 @@ const NAV_ICONS: Record<HeaderNavItemId, IconComponent> = {
   richieste: MailIcon,
   profilo: UserIcon,
   avvisi: MegaphoneIcon,
+  impostazioni: SettingsIcon,
   manuale: BookOpenIcon,
 };
 
@@ -356,7 +358,7 @@ export function SiteHeader() {
 
             <nav
               aria-label="Navigazione principale"
-              className="hidden items-center gap-1 min-[900px]:flex"
+              className="hidden items-center gap-1 min-[1000px]:flex"
             >
               {memberItems.map((item) => (
                 <HeaderNavLink
@@ -409,7 +411,7 @@ export function SiteHeader() {
                 <HelpCircleIcon className="h-4.5 w-4.5" />
               </Link>
 
-              <div className="relative hidden min-[900px]:block">
+              <div className="relative hidden min-[1000px]:block">
                 <button
                   aria-controls="account-menu"
                   aria-expanded={isAccountMenuOpen}
@@ -472,7 +474,7 @@ export function SiteHeader() {
                 aria-controls="site-navigation-drawer"
                 aria-expanded={isDrawerOpen}
                 aria-label="Apri il menu di navigazione"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 min-[900px]:hidden dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 min-[1000px]:hidden dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100"
                 onClick={() => setIsDrawerOpen(true)}
                 ref={drawerTriggerRef}
                 type="button"
@@ -494,7 +496,7 @@ export function SiteHeader() {
       </header>
 
       {isDrawerOpen ? (
-        <div className="fixed inset-0 z-40 min-[900px]:hidden">
+        <div className="fixed inset-0 z-40 min-[1000px]:hidden">
           <button
             aria-label="Chiudi il menu di navigazione"
             className="absolute inset-0 h-full w-full cursor-default bg-zinc-950/45 backdrop-blur-sm"

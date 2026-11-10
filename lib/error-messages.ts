@@ -15,6 +15,26 @@ export const SESSION_ERROR_MESSAGE =
 export const GUEST_COUNT_ERROR_MESSAGE =
   "Il numero di invitati deve essere un numero intero pari o superiore a 0.";
 
+/*
+ * Context messages for the administrator-only organization settings form.
+ * Kept here, rather than inline in the page, so every Postgres failure that the
+ * table can produce has one Italian mapping.
+ */
+export const ORGANIZATION_SETTINGS_PERMISSION_ERROR_MESSAGE =
+  "Non hai i permessi per modificare le impostazioni privacy. Solo gli amministratori possono farlo.";
+
+export const ORGANIZATION_SETTINGS_MISSING_TABLE_ERROR_MESSAGE =
+  "La tabella delle impostazioni privacy non è ancora disponibile. Applica le migrazioni Supabase con npm run db:push.";
+
+export const ORGANIZATION_SETTINGS_SAVE_ERROR_MESSAGE =
+  "Non è stato possibile salvare le impostazioni privacy. Riprova tra poco; se il problema continua, contatta un amministratore.";
+
+export const ORGANIZATION_SETTINGS_CHECK_ERROR_MESSAGE =
+  "I dati del titolare non rispettano i vincoli previsti. Controlla il nome e gli indirizzi email, poi riprova.";
+
+export const ORGANIZATION_SETTINGS_INVALID_INPUT_ERROR_MESSAGE =
+  "Uno dei valori inseriti non è valido. Controlla i campi e riprova.";
+
 type FriendlyErrorOptions = {
   /** Message used when the failure cannot be classified safely. */
   fallback: string;

@@ -35,6 +35,7 @@ import {
   MailIcon,
   MapPinIcon,
   MegaphoneIcon,
+  SettingsIcon,
   ShieldCheckIcon,
   UsersIcon,
 } from "@/components/icons";
@@ -311,7 +312,7 @@ function HomeContent() {
             <h2 className="sr-only" id="admin-tools-heading">
               Strumenti amministratore
             </h2>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <article className="flex flex-col justify-between rounded-2xl border border-amber-200 bg-amber-50/70 p-5 dark:border-amber-900 dark:bg-amber-950/30">
                 <div className="flex items-start gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
@@ -332,6 +333,30 @@ function HomeContent() {
                   href="/avvisi"
                 >
                   Gestisci gli avvisi
+                  <ArrowRightIcon className="h-4 w-4" />
+                </Link>
+              </article>
+
+              <article className="flex flex-col justify-between rounded-2xl border border-violet-200 bg-violet-50/70 p-5 dark:border-violet-900 dark:bg-violet-950/30">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100 text-violet-800 dark:bg-violet-950/60 dark:text-violet-300">
+                    <SettingsIcon className="h-5 w-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-semibold text-violet-950 dark:text-violet-100">
+                      Impostazioni privacy
+                    </h3>
+                    <p className="mt-1 text-sm leading-6 text-violet-900 dark:text-violet-200">
+                      Aggiorna i dati del titolare del trattamento pubblicati
+                      sulla pagina privacy.
+                    </p>
+                  </div>
+                </div>
+                <Link
+                  className="mt-4 inline-flex w-fit items-center gap-2 rounded-xl bg-violet-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-violet-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-600 dark:bg-violet-600 dark:hover:bg-violet-500"
+                  href="/admin/impostazioni"
+                >
+                  Gestisci le impostazioni
                   <ArrowRightIcon className="h-4 w-4" />
                 </Link>
               </article>

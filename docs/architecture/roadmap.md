@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Design Decisions, Implementation Status, and Roadmap |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 4 November 2026 |
+| Snapshot date | 10 November 2026 |
 
 ## 3. Current State & Implementation Status
 
@@ -127,9 +127,11 @@ A second inconsistency is that `announcement_banners` is approval-gated but not 
 
 **Challenge.** The privacy policy must be readable without JavaScript and without authentication, but its controller details should be editable without a redeploy. Next.js 16's `cacheComponents` model also requires uncached I/O to be explicit.
 
-**Decision.** Render `/privacy` on the server, read the single `organization_settings` row through the `anon` role, and wrap the read in `"use cache"` with `cacheLife("hours")`. Keep writes out of the app; administrators update the row in the Supabase dashboard or with the service role. Generate the policy's last-modified date before dev/build/typecheck so the displayed date reflects both the settings and the text.
+**Decision.** Render `/privacy` on the server, read the single `organization_settings` row through the `anon` role, and wrap the read in `"use cache"` with `cacheLife("hours")`. Generate the policy's last-modified date before dev/build/typecheck so the displayed date reflects both the settings and the text.
 
-**Consequences.** The public page is fast and robust, and it degrades to neutral placeholders if Supabase or the migration is unavailable. The cost is up to an hour of staleness after a controller-detail update, and an operational dependency on the generated metadata script. A settings change that must be visible immediately currently requires a redeploy or cache invalidation.
+The original "writes stay out of the app" part of this decision is now deliberately reversed. Administrators update the four published controller fields from `/admin/impostazioni`. The replacement boundary is database-owned: `anon` keeps SELECT only; `authenticated` receives a column-scoped UPDATE grant on `organization_name`, `address`, `contact_email`, and `dpo_email`; the UPDATE RLS policy calls `is_current_user_admin()`; and a `BEFORE UPDATE` trigger forces `updated_at = now()` while preserving the `id = true` single-row invariant. The UI only updates the seeded row and has no INSERT or DELETE grant. The service-role and dashboard paths remain available for operational repairs.
+
+**Consequences.** The public page is still fast and robust, and it degrades to neutral placeholders if Supabase or the migration is unavailable. The cost is up to an hour of staleness after a controller-detail update, and an operational dependency on the generated metadata script. That staleness is now the accepted, documented behavior: a saved change is immediate in the database but becomes publicly visible at most one hour later according to the cache window. The administrator form and manual state this explicitly. There is intentionally no `revalidateTag` call, no lower `cacheLife`, and no restructuring of the caching strategy; if the hourly delay ever becomes unacceptable, it needs a separate design discussion rather than a silent change to this path.
 
 ### 4.9 Server-side pagination over PostgREST
 

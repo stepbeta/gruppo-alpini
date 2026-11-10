@@ -171,6 +171,16 @@ export function PlusIcon({ className }: IconProps) {
   );
 }
 
+export function SettingsIcon({ className }: IconProps) {
+  return (
+    <IconBase className={className}>
+      <path d="M4 7h9M19 7h1M4 17h1M11 17h9" />
+      <circle cx="15.5" cy="7" r="2.3" />
+      <circle cx="8.5" cy="17" r="2.3" />
+    </IconBase>
+  );
+}
+
 export function MapPinIcon({ className }: IconProps) {
   return (
     <IconBase className={className}>

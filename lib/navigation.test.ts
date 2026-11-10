@@ -10,8 +10,8 @@ import {
 // covers the pure navigation model.
 
 describe("header navigation breakpoint", () => {
-  it("switches to the flat navigation at 900px", () => {
-    expect(HEADER_NAV_BREAKPOINT_PX).toBe(900);
+  it("switches to the flat navigation at 1000px", () => {
+    expect(HEADER_NAV_BREAKPOINT_PX).toBe(1000);
   });
 });
 
@@ -32,15 +32,17 @@ describe("getHeaderNavigation", () => {
     expect(navigation.adminItems).toEqual([]);
   });
 
-  it("adds Avvisi and Manuale to the admin group for administrators", () => {
+  it("adds Avvisi, Impostazioni and Manuale to the admin group for administrators", () => {
     const navigation = getHeaderNavigation(true);
 
     expect(navigation.adminItems.map((item) => item.href)).toEqual([
       "/avvisi",
+      "/admin/impostazioni",
       "/admin/manuale",
     ]);
     expect(navigation.adminItems.map((item) => item.label)).toEqual([
       "Avvisi",
+      "Impostazioni",
       "Manuale",
     ]);
   });

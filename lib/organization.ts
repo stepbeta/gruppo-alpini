@@ -5,9 +5,10 @@ import { supabase } from "./supabase";
  * Public controller details rendered by `/privacy`.
  *
  * The row is intentionally readable by the `anon` role: the page must work for
- * visitors who have not signed in. Values are stored without a login flow in
- * `public.organization_settings` and are edited by an administrator from the
- * Supabase dashboard (or with the service role).
+ * visitors who have not signed in. Values are stored in
+ * `public.organization_settings` and are edited in-app by administrators at
+ * `/admin/impostazioni`; the dashboard and service role remain operational
+ * repair paths. The database policy, not this cached read, is the boundary.
  */
 export type OrganizationSettings = {
   organizationName: string;
@@ -54,10 +55,11 @@ function parseSettings(value: unknown): OrganizationSettings | null {
  * Reads the single organization-settings row with a cached server fetch.
  *
  * `cacheComponents` requires uncached I/O to be explicit. The profile is
- * refreshed at most once per hour; edits made in the dashboard therefore
- * become visible without a redeploy. If Supabase is not configured, or the
- * migration has not been applied yet, the page falls back to neutral values
- * instead of throwing during prerendering.
+ * refreshed at most once per hour; edits saved at `/admin/impostazioni`
+ * therefore become publicly visible without a redeploy, at most one hour
+ * later. If Supabase is not configured, or the migration has not been applied
+ * yet, the page falls back to neutral values instead of throwing during
+ * prerendering.
  */
 export async function getOrganizationSettings(): Promise<OrganizationSettings> {
   "use cache";

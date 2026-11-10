@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Technology Stack & Runtime Topology |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 6 November 2026 |
+| Snapshot date | 10 November 2026 |
 
 ## 2. Tech Stack & Architecture
 
@@ -43,8 +43,9 @@ The important architectural fact is that **the Next.js server is not the primary
 | `app/` | App Router route segments. Most authenticated pages are thin server wrappers around client components; `/privacy` is a server component; `/api/account/delete` is the only route handler[cite: 9]. |
 | `components/` | Shared UI and access gates: `AuthProvider`, `AuthGuard`, `SessionGuard`, `ThemeProvider`, theme toggle, `PrivacyConsentGate`, `ApprovalGate`, header/footer, dialogs, forms, pagination, banner, configuration notice[cite: 9]. |
 | `app/faq/` | Static Italian member help hub with deep links to member features; gated by session only so it remains available on consent and approval holding screens[cite: 9]. |
-| `lib/` | Domain and data-access helpers: profiles, events, event templates, requests, announcements, consent, exports, auth actions, redirects, privacy metadata, pagination, theme mode helpers, header navigation model, display helpers, and the browser Supabase singleton[cite: 9]. |
-| `lib/navigation.ts` | Pure header navigation model: 900 px breakpoint constant, member/admin groups, future badge metadata, and active-route matching; covered by `lib/navigation.test.ts`[cite: 9]. |
+| `lib/` | Domain and data-access helpers: profiles, events, event templates, requests, announcements, organization settings, consent, exports, auth actions, redirects, privacy metadata, pagination, theme mode helpers, header navigation model, display helpers, and the browser Supabase singleton[cite: 9]. |
+| `lib/navigation.ts` | Pure header navigation model: 1000 px breakpoint constant, member/admin groups, future badge metadata, and active-route matching; covered by `lib/navigation.test.ts`[cite: 9]. |
+| `lib/organization-settings.ts` | Administrator form data access, validation, nullable normalization, timestamp formatting, and Italian error mapping; covered by `lib/organization-settings.test.ts`[cite: 9]. |
 | `lib/events.ts` | Event/RSVP types, pagination filters, and CRUD helpers; re-exports shared Italian date/time helpers[cite: 9]. |
 | `lib/italian-date.ts` | Shared masked Italian date/time input helpers: `gg/mm/aaaa` and `HH:mm` masking, strict parsing, ISO conversion, and Italian formatting used by events, announcements, birth-date forms, and templates[cite: 9]. |
 | `lib/event-templates.ts` | Event-template types, validation, time normalization, CRUD helpers, and conversion of an existing event into template input[cite: 9]. |

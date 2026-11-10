@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Security, Data Model, RLS, and Privacy Flows |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 9 November 2026 |
+| Snapshot date | 10 November 2026 |
 
 ### 2.4 Data model
 
@@ -16,7 +16,7 @@
 | `event_responses` | One RSVP per member per event | Unique `(event_id, user_id)`. `event_id` cascades on event deletion. `user_id` becomes `NULL` on profile deletion; the status remains for historical totals. `guest_count` is `integer NOT NULL DEFAULT 0` with a `guest_count >= 0` check, covered by the existing table-level insert/update grants; guests follow the member’s status and an `absent` response keeps the value without contributing to attendance totals. |
 | `generic_requests` | Messages to the secretariat | `user_id` becomes `NULL` on profile deletion. `message` has a non-blank check. `status` is `open` or `resolved` and defaults to `open`. |
 | `user_consents` | Append-only privacy acceptance history | One row per `(user_id, policy_version)`. `user_id` cascades from `auth.users`. `accepted_at` is forced server-side. No update or delete grant. |
-| `organization_settings` | Public controller details for `/privacy` | Single-row table enforced by `id boolean primary key default true` and `check (id = true)`. Readable by `anon` and `authenticated`; writes are operational, not part of the app. |
+| `organization_settings` | Public controller details for `/privacy` and the administrator form at `/admin/impostazioni` | Single-row table enforced by `id boolean primary key default true` and `check (id = true)`. Publicly readable by `anon` and `authenticated`. `authenticated` receives only a column-scoped UPDATE grant on the four published controller fields, gated by an administrator-only policy; INSERT and DELETE are not granted. `updated_at` is server-owned through a `BEFORE UPDATE` trigger and feeds the public last-modified date. |
 | `announcement_banners` | Platform-wide messages | Optional `start_date`/`end_date`, `is_active`, `created_by` with `ON DELETE SET NULL`. Non-blank message and valid date order constraints. |
 | `purchase_items`, `purchase_orders` | Dormant shop schema from the initial migration | RLS policies and deletion handling exist, but no table grants expose them to the API and no UI uses them. |
 
@@ -41,8 +41,10 @@ The main policy matrix is:
 | `generic_requests` | Read own rows; insert own row | Read every row; update `status` on any row. The column-level grant prevents message or owner rewrites |
 | `announcement_banners` | Read only active rows inside their display window | Read every row; create, update, delete |
 | `user_consents` | Read own rows; insert own rows | Read others' rows only when the administrator has accepted the policy themselves |
-| `organization_settings` | Public read, including anonymous visitors | No application write path; updates are operational |
+| `organization_settings` | Public read, including anonymous visitors; no writes | Read every row; update the four published controller fields only, through the `is_current_user_admin()` policy. `id` and `updated_at` are excluded from the grant |
 | `purchase_items`, `purchase_orders` | No API grants currently | No API grants currently |
+
+`organization_settings` is the one table whose write path was added after the initial security model. The public read policy is unchanged, and `anon` remains SELECT-only. The 20261110104450 migration adds a column-scoped UPDATE grant for `authenticated`, a separate permissive UPDATE policy that calls `is_current_user_admin()`, and no INSERT or DELETE grant. The existing `organization_settings_touch_updated_at` trigger is replaced with a stronger version that forces `updated_at = now()` and rejects any attempt to move the row away from `id = true`, so the public last-modified date cannot be client-supplied and the single-row invariant survives direct API calls. A future append-only audit table for roadmap 5.3 can be written from that same trigger in the update transaction; it is deliberately not part of this change.
 
 On top of the table policies, two restrictive layers apply:
 

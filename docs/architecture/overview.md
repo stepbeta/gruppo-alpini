@@ -4,7 +4,7 @@
 | --- | --- |
 | Document type | Architecture overview: Product Scope and Operating Model |
 | Repository | `gruppo-alpini` |
-| Snapshot date | 5 November 2026 |
+| Snapshot date | 10 November 2026 |
 
 ## 1. High-Level Purpose & Features
 
@@ -33,7 +33,7 @@ The application has five practical access levels. There is no separate role tabl
 | **Unconsented authenticated account** | Signed in, but no consent row for the current policy version | See the blocking `Consenso necessario` screen, record consent, open the static `/faq` help page, delete their own account, and sign out | Enter the portal through the UI; read member-data tables covered by the consent-restrictive policies |
 | **Pending or rejected member** | Signed in and consent accepted, but `approval_status` is not `approved` | See the `Account in attesa di approvazione` or rejection screen, open the static `/faq` help page, export their own data, delete their own account, and sign out | Read the directory, events, responses, requests, announcements, or shop data |
 | **Approved member** | `approval_status = 'approved'` | Use the home page, member directory, event calendar and RSVP, personal request form and history, announcement banner, profile, credentials, export, self-deletion, and the `/faq` help hub | Use administrative controls, read other members' RSVPs, or read the secretariat board |
-| **Administrator** | `profiles.is_admin = true`, assigned in-app by an existing administrator from `/iscritti` (maximum 4; self-demotion is blocked by the database) | Everything an approved member can do, plus approve/reject accounts, edit member profiles, promote or revoke administrator roles, create/edit/delete events, see all RSVPs and attendance totals, read and resolve all requests, manage announcements, export another member's data, delete another member's account, and read the in-app administrator manual | The database still enforces privacy consent; administrator status is deliberately treated as approved, so the role is not a bypass around the consent gate. An administrator cannot revoke their own role |
+| **Administrator** | `profiles.is_admin = true`, assigned in-app by an existing administrator from `/iscritti` (maximum 4; self-demotion is blocked by the database) | Everything an approved member can do, plus approve/reject accounts, edit member profiles, promote or revoke administrator roles, create/edit/delete events, see all RSVPs and attendance totals, read and resolve all requests, manage announcements, update the public controller details from `/admin/impostazioni`, export another member's data, delete another member's account, and read the in-app administrator manual | The database still enforces privacy consent; administrator status is deliberately treated as approved, so the role is not a bypass around the consent gate. An administrator cannot revoke their own role |
 
 Administrators are treated as approved by both the database helper `is_current_user_approved()` and the client. This is deliberate: an accidentally rejected administrator must not lose the ability to repair accounts. The privacy-consent requirement still applies to administrators.
 
@@ -52,8 +52,8 @@ There is also a machine role, `service_role`, used only by the server-side accou
 | **Requests** | Personal request submission and history, secretariat board for administrators, status filtering, open/resolved counts, header pending-requests counter, resolve/reopen actions | `/richieste` |
 | **Announcements** | Platform-wide banner, optional scheduling window, activation toggle, administrator CRUD, live refresh after changes; the management page is linked from the header's administrator-only group | `/avvisi`, header banner |
 | **Profile and credentials** | Editable personal data, password and email management for email/password accounts, Google-account notice, data export, account deletion; reachable from the header avatar menu or the mobile drawer | `/profile` |
-| **Privacy and data rights** | Public policy page, dynamic controller details, JSON/text/HTML export, account deletion and anonymization, consent history | `/privacy`, `/profile`, `/iscritti` |
-| **Administration** | Approval decisions, member maintenance, event management, request board, announcement management, cross-member export and deletion, in-app administrator manual; `/avvisi` and `/admin/manuale` are grouped together in the header for administrators | Admin controls embedded in the normal pages; `/avvisi`, `/admin/manuale` |
+| **Privacy and data rights** | Public policy page, dynamic controller details, administrator-only settings form, JSON/text/HTML export, account deletion and anonymization, consent history | `/privacy`, `/admin/impostazioni`, `/profile`, `/iscritti` |
+| **Administration** | Approval decisions, member maintenance, event management, request board, announcement management, privacy-settings management, cross-member export and deletion, in-app administrator manual; `/avvisi`, `/admin/impostazioni`, and `/admin/manuale` are grouped together in the header for administrators | Admin controls embedded in the normal pages; `/avvisi`, `/admin/impostazioni`, `/admin/manuale` |
 
 ### 1.4 End-to-end journeys
 

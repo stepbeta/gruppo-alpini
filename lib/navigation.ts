@@ -13,11 +13,11 @@
  * Width at which the flat header navigation takes over from the drawer.
  *
  * The widest state (brand, Eventi/Iscritti/Richieste, the administrator
- * divider with Avvisi/Manuale, theme and FAQ controls, and the avatar) needs
- * roughly 860 px. 900 px leaves comfortable breathing room without switching
- * tablets to the drawer earlier than necessary.
+ * divider with Avvisi/Impostazioni/Manuale, theme and FAQ controls, and the
+ * avatar) needs roughly 960 px. 1000 px leaves comfortable breathing room
+ * without switching tablets to the drawer earlier than necessary.
  */
-export const HEADER_NAV_BREAKPOINT_PX = 900;
+export const HEADER_NAV_BREAKPOINT_PX = 1000;
 
 export type HeaderNavItemId =
   | "eventi"
@@ -25,6 +25,7 @@ export type HeaderNavItemId =
   | "richieste"
   | "profilo"
   | "avvisi"
+  | "impostazioni"
   | "manuale";
 
 /** Labels used by the administrator pending-counter badges. */
@@ -67,6 +68,11 @@ export const HEADER_DRAWER_MEMBER_ITEMS: readonly HeaderNavItem[] = [
 
 export const HEADER_ADMIN_ITEMS: readonly HeaderNavItem[] = [
   { id: "avvisi", href: "/avvisi", label: "Avvisi" },
+  {
+    id: "impostazioni",
+    href: "/admin/impostazioni",
+    label: "Impostazioni",
+  },
   { id: "manuale", href: "/admin/manuale", label: "Manuale" },
 ];
 

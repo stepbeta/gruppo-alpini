@@ -42,6 +42,7 @@ import {
   MailIcon,
   MegaphoneIcon,
   PencilIcon,
+  SettingsIcon,
   ShieldCheckIcon,
   UsersIcon,
 } from "@/components/icons";
@@ -57,6 +58,7 @@ type ManualSectionId =
   | "eventi"
   | "segreteria"
   | "avvisi"
+  | "impostazioni"
   | "privacy";
 
 type ManualSectionProps = {
@@ -103,6 +105,12 @@ const MANUAL_SECTIONS: Array<{
     title: "Avvisi",
     summary: "Pubblicare e programmare messaggi per tutti i soci.",
     icon: MegaphoneIcon,
+  },
+  {
+    id: "impostazioni",
+    title: "Impostazioni privacy",
+    summary: "Aggiornare i dati del titolare pubblicati sulla pagina privacy.",
+    icon: SettingsIcon,
   },
   {
     id: "privacy",
@@ -163,7 +171,7 @@ const ROLES: Array<{
     name: "Amministratore",
     label: "Accesso completo",
     description:
-      "Ha tutte le funzioni dei soci e in più gestisce approvazioni, ruoli, iscritti, eventi, modelli, richieste e avvisi.",
+      "Ha tutte le funzioni dei soci e in più gestisce approvazioni, ruoli, iscritti, eventi, modelli, richieste, avvisi e impostazioni privacy.",
     tone: "admin",
   },
 ];
@@ -591,6 +599,7 @@ export function AdminManual() {
                   "Leggere le adesioni agli eventi e i nominativi dei soci.",
                   "Seguire le richieste inviate alla segreteria e cambiarne lo stato.",
                   "Pubblicare, programmare, disattivare o eliminare gli avvisi.",
+                  "Aggiornare i dati del titolare del trattamento pubblicati sulla pagina privacy.",
                   "Esportare i dati di un socio o eliminare un account, nel rispetto della privacy.",
                 ]}
               />
@@ -974,6 +983,100 @@ export function AdminManual() {
                 la pagina.
               </p>
             </div>
+          </ManualSection>
+
+          <ManualSection
+            description="I dati del titolare del trattamento mostrati nella pagina pubblica."
+            icon={SettingsIcon}
+            id="impostazioni"
+            isHidden={isSectionHidden("impostazioni")}
+            title="Impostazioni privacy"
+          >
+            <p>
+              La pagina <strong>/privacy</strong> è pubblica e mostra i dati del
+              titolare del trattamento. Questi dati non sono scritti nel codice:
+              sono conservati in un’unica riga del database e si modificano da{" "}
+              <strong>Impostazioni privacy</strong>.
+            </p>
+
+            <ManualNote title="Dove trovare la pagina">
+              Apri <strong>Impostazioni</strong> nel gruppo{" "}
+              <strong>Amministrazione</strong> del menu in alto, accanto ad{" "}
+              <strong>Avvisi</strong> e <strong>Manuale</strong>, oppure usa la
+              scheda “Impostazioni privacy” nella pagina iniziale. La pagina è
+              riservata agli amministratori; un socio non amministratore vede un
+              pannello di accesso riservato.
+            </ManualNote>
+
+            <div>
+              <SectionHeading>Cosa puoi modificare</SectionHeading>
+              <ManualList
+                items={[
+                  "Nome del titolare: è il nome dell’associazione mostrato come titolare del trattamento.",
+                  "Sede: l’indirizzo pubblicato accanto al nome. È facoltativo; se vuoto, la pagina scrive “indirizzo non ancora pubblicato”.",
+                  "Email di contatto: l’indirizzo a cui scrivere per esercitare i diritti privacy. È facoltativo; se vuoto, la pagina invita a contattare gli amministratori.",
+                  "Email del DPO: l’indirizzo del responsabile della protezione dei dati, se il gruppo ne ha uno. È facoltativo; se vuoto, la riga dedicata non compare.",
+                ]}
+              />
+              <p className="mt-2">
+                Tutti i campi compilati sono <strong>pubblicati</strong> sulla
+                pagina <strong>/privacy</strong>: chiunque può leggerli, anche
+                senza account. Non inserire dati che non vuoi rendere pubblici.
+              </p>
+            </div>
+
+            <div>
+              <SectionHeading>Salvare e verificare la modifica</SectionHeading>
+              <ol className="mt-3 list-decimal space-y-2 pl-5">
+                <li>
+                  Apri <strong>Impostazioni privacy</strong> e controlla i valori
+                  attuali. In alto trovi la data dell’ultima modifica.
+                </li>
+                <li>Correggi i campi e premi <strong>Salva impostazioni</strong>.</li>
+                <li>
+                  Il database registra subito i nuovi valori e aggiorna la data
+                  di ultima modifica. Il messaggio di conferma mostra la data
+                  restituita dal database.
+                </li>
+                <li>
+                  La pagina pubblica può non cambiare immediatamente: usa una
+                  cache di un’ora. Attendi fino a un’ora dalla cache precedente,
+                  poi ricarica <strong>/privacy</strong> (anche con un
+                  aggiornamento forzato del browser, ad esempio Ctrl+Shift+R).
+                  Un semplice ricaricamento immediato non aggira la cache del
+                  server.
+                </li>
+              </ol>
+            </div>
+
+            <ManualNote title="La pagina pubblica può arrivare con un’ora di ritardo" tone="warning">
+              La pagina privacy pubblica può impiegare fino a un’ora per
+              riflettere le modifiche a causa della cache. Il salvataggio è
+              immediato nel database: la stessa attesa è indicata anche nel
+              modulo, accanto al pulsante di salvataggio e dopo ogni salvataggio
+              riuscito. Non è possibile forzare l’aggiornamento dalla pagina di
+              amministrazione.
+            </ManualNote>
+
+            <div>
+              <SectionHeading>Impostazioni e consenso dei soci</SectionHeading>
+              <p className="mt-2">
+                Modificare sede, email o nome del titolare non richiede un nuovo
+                consenso ai soci. Il consenso versionato riguarda il{" "}
+                <strong>testo dell’informativa</strong>: quando cambia il testo
+                (e quindi <code className="rounded bg-zinc-100 px-1 py-0.5 text-xs dark:bg-zinc-800">PRIVACY_POLICY_VERSION</code>
+                , oggi <strong>{PRIVACY_POLICY_VERSION}</strong>) ai soci viene
+                chiesto di accettarlo di nuovo. Non aggiornare la versione per
+                una semplice modifica dei dati del titolare.
+              </p>
+            </div>
+
+            <ManualNote title="Una sola riga, sempre aggiornata">
+              La tabella contiene una sola riga. Il modulo la modifica e non ne
+              crea altre; la data di ultima modifica è gestita dal database e
+              non può essere impostata dal browser. Non serve creare o eliminare
+              righe dal pannello Supabase.
+            </ManualNote>
           </ManualSection>
 
           <ManualSection
