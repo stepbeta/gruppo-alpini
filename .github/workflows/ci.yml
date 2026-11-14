@@ -49,3 +49,30 @@ jobs:
           name: coverage
           path: coverage/
           if-no-files-found: ignore
+
+  database-integration:
+    name: Database RLS integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Start local Supabase stack
+        run: npm run db:start
+
+      - name: Apply migrations from scratch
+        run: npm run db:reset
+
+      - name: Run database and RLS integration tests
+        run: npm run test:integration

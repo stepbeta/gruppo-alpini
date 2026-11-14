@@ -182,16 +182,21 @@ Closing these gaps turns "the UI blocks it" into "the database blocks it," which
 
 ### 5.2 Make authorization testable
 
-The highest engineering return would come from running a real Postgres/Supabase instance in CI and exercising the policy matrix:
+**Implemented.** `tests/integration/` runs API-level database/RLS tests against the local Docker Supabase stack, one spec per domain:
 
-- anonymous, unconsented, pending, rejected, approved member, administrator, and service role;
-- own versus other rows for profiles, events, responses, requests, consent, and announcements;
-- consent-version changes and approval-status changes;
-- self-export, cross-member export, self-deletion, and cross-member deletion;
-- trigger behavior for `created_by`, `is_admin` (including the four-administrator cap and self-demotion), `approval_status`, `accepted_at`, blank text, and `SET NULL`;
-- the exact `42501`/`PGRST` error paths the UI translates.
+- roles: anonymous, signed-in without consent, pending, rejected, approved member, administrator, and service role;
+- `profiles`: own-row reads in every status, approved-directory visibility, hidden pending/rejected rows, self-approval and self-promotion blocks, approval by administrators, the four-administrator cap (including concurrent promotions), and self-demotion;
+- `user_consents`: restrictive read/write guards, server-owned `accepted_at`, append-only update/delete denial, one row per policy version, and owner-scoped reads;
+- `events` and `event_templates`: database-owned/immutable `created_by`, admin-only writes, all-day/`default_time` checks, and non-blank titles;
+- `event_responses`: unique `(event_id, user_id)`, owner-only writes, administrator read-all/write-own behavior, and non-negative guests;
+- `generic_requests`: the `UPDATE (status)` column grant, blocked message/owner rewrites, non-blank messages, and status validation;
+- `announcement_banners`: active-window visibility for members, admin read/write access, and date/message constraints;
+- deletion: `ON DELETE SET NULL` for event/template authors and response/request owners, cascaded consent rows, retained historical attendance (`Socio eliminato`), and multiple anonymized responses per event;
+- exact `42501`, `PGRST116`, `PGRST204`, `PGRST303`, `P0001`, `23502`, `23503`, `23505`, `23514`, and `22007` paths used by the Italian error mapping.
 
-This can be implemented with pgTAP or SQL fixtures plus a test runner, or with an ephemeral Supabase stack and API-level tests using real JWTs. The important outcome is not a particular tool; it is that a policy regression fails CI before it reaches production.
+The suite reads credentials from `supabase status` and refuses non-loopback URLs. It creates real `auth.users` fixtures, resets local public tables and fixture users between tests, and switches local `auto_expose_new_tables` off so migration grants are observable. A separate CI job starts the stack, applies migrations from scratch, and runs `npm run test:integration`, so a policy regression now fails CI.
+
+Remaining gaps: the dormant purchase tables and component/route rendering are not covered, and administrator role changes still lack an audit trail (section 5.3).
 
 ### 5.3 Add an administrative audit trail
 

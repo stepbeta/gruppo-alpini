@@ -90,6 +90,38 @@ npm run db:reset      # re-apply all migrations from scratch
 npm run db:new <name> # scaffold a new timestamped migration
 ```
 
+### Database and RLS integration tests
+
+The authorization boundary lives in SQL grants, RLS policies, triggers, and
+constraints. `tests/integration/` exercises that boundary through real
+`@supabase/supabase-js` clients against the **local** Supabase stack:
+
+```bash
+npm run db:start
+npm run db:reset
+npm run test:integration
+```
+
+The specs read the URL and keys from `supabase status`, never from `.env.local`,
+and refuse to run against a non-loopback URL. They create and delete real
+`auth.users` fixtures, so **the suite clears local public tables and local auth
+users between tests**. Do not point it at a stack whose local data you need.
+
+`npm test` runs the unit and integration suites together when the local stack is
+available and skips the integration files otherwise. `npm run test:integration`
+turns a missing stack into a failure, which is what CI uses. The local
+`supabase/config.toml` sets `auto_expose_new_tables = false` so the migrations'
+explicit grants are enforced exactly as in the documented production model; run
+`npm run db:reset` after changing that setting. The test bootstrap grants the
+server-only `service_role` access to public tables for fixture setup and raw
+assertions, matching its trusted production role.
+
+The suites cover profiles and approval/administrator guards, the consent layer,
+events and event templates, event responses, generic requests, announcement
+banners, account-deletion anonymization, and the exact `42501`/`PGRST`/
+constraint error codes used by the Italian error mapping. Dormant purchase
+tables and component/route rendering are outside this suite.
+
 ---
 
 ## Scripts
@@ -101,6 +133,10 @@ npm run db:new <name> # scaffold a new timestamped migration
 | `npm run start`          | Serve the production build                              |
 | `npm run lint`           | Run ESLint                                              |
 | `npm run typecheck`      | Type-check with `tsc --noEmit`                          |
+| `npm test`               | Unit tests plus local database integration when running |
+| `npm run test:unit`      | Unit tests only                                         |
+| `npm run test:integration` | Database/RLS suite; fails if the local stack is down  |
+| `npm run test:coverage`  | Vitest with V8 coverage                                 |
 | `npm run db:*`           | Supabase CLI helpers                                    |
 
 ---
