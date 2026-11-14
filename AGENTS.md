@@ -29,7 +29,7 @@ Before changing behavior, consult the relevant module in `docs/architecture/`. T
 - Local dev server: `npm run dev` (Turbopack, port 3000).
 - Tests: `npm test` (Vitest, unit + database/RLS integration when the local stack is running), `npm run test:unit`, `npm run test:integration`, and `npm run test:coverage`.
   - Integration tests live in `tests/integration/` (one spec per domain). Prerequisites: Docker, then `npm run db:start` and `npm run db:reset`. They read credentials from `supabase status` and never touch `.env.local`; they wipe local public tables and local auth users between tests.
-  - `npm test` skips integration when the stack is unavailable; `npm run test:integration` fails instead and is what the separate CI job runs.
+  - `npm test` skips integration when the stack is unavailable; `npm run test:integration` fails instead and is what the separate CI job runs. `npm run test:coverage` runs unit tests only (`lib/`) and is what the main CI job uses.
   - Local `supabase/config.toml` sets `auto_expose_new_tables = false` so explicit migration grants are enforced. Run `npm run db:reset` after changing that setting.
   - There are still no component/route or Playwright E2E tests.
 

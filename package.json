@@ -12,7 +12,7 @@
     "test": "vitest run",
     "test:unit": "vitest run lib",
     "test:integration": "SUPABASE_INTEGRATION_REQUIRED=1 vitest run tests/integration",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run lib --coverage",
     "test:watch": "vitest",
     "pretypecheck": "npm run privacy:meta",
     "typecheck": "tsc --noEmit",

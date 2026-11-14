@@ -13,6 +13,9 @@ export default defineConfig({
       provider: "v8",
       reporter: ["text", "html", "lcov"],
       reportOnFailure: true,
+      // Integration support modules are test infrastructure, not application
+      // code; keep them out of the unit-coverage baseline.
+      exclude: ["tests/**"],
     },
   },
 });

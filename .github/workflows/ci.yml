@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   verify:
-    name: Typecheck, lint and test
+    name: Typecheck, lint and unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -39,7 +39,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Run tests with coverage
+      - name: Run unit tests with coverage
         run: npm run test:coverage
 
       - name: Upload coverage report

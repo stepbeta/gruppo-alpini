@@ -136,7 +136,7 @@ tables and component/route rendering are outside this suite.
 | `npm test`               | Unit tests plus local database integration when running |
 | `npm run test:unit`      | Unit tests only                                         |
 | `npm run test:integration` | Database/RLS suite; fails if the local stack is down  |
-| `npm run test:coverage`  | Vitest with V8 coverage                                 |
+| `npm run test:coverage`  | Unit tests with V8 coverage (no database integration)   |
 | `npm run db:*`           | Supabase CLI helpers                                    |
 
 ---
