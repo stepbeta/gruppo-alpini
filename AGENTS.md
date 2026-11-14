@@ -31,7 +31,7 @@ Before changing behavior, consult the relevant module in `docs/architecture/`. T
   - Integration tests live in `tests/integration/` (one spec per domain). Prerequisites: Docker, then `npm run db:start` and `npm run db:reset`. They read credentials from `supabase status` and never touch `.env.local`; they wipe local public tables and local auth users between tests.
   - `npm test` skips integration when the stack is unavailable; `npm run test:integration` fails instead and is what the separate CI job runs. `npm run test:coverage` runs unit tests only (`lib/`) and is what the main CI job uses.
   - Local `supabase/config.toml` sets `auto_expose_new_tables = false` so explicit migration grants are enforced. Run `npm run db:reset` after changing that setting.
-  - There are still no component/route or Playwright E2E tests.
+  - Playwright E2E journeys live in `tests/e2e/` and run against the local stack with `npm run test:e2e` (Docker, migrations applied, ports 3000 and 54321–54324 free). They are not wired into CI yet. Known defects are tracked in `docs/e2e-known-issues.md`.
 
 ## Next.js 16 specifics
 - `next.config.ts` enables `cacheComponents: true`. Any uncached I/O (e.g. a Supabase query) **must** be inside a `<Suspense>` boundary or the build/dev overlay reports a blocking-route error. For the cached server-read pattern, see `app/privacy/page.tsx` and `lib/organization.ts`.
@@ -48,3 +48,13 @@ Before changing behavior, consult the relevant module in `docs/architecture/`. T
 ## Housekeeping
 - `.env.local` is git-ignored and uncommitted; it holds real project credentials locally.
 - `.vscode/launch.json` has working debug configs (server-side, client-side, full stack).
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

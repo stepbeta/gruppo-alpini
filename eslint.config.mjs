@@ -13,6 +13,10 @@ const eslintConfig = defineConfig([
     "build/**",
     "coverage/**",
     "next-env.d.ts",
+    // Playwright artifacts and generated auth state:
+    "playwright-report/**",
+    "test-results/**",
+    "tests/e2e/.auth/**",
   ]),
 ]);
 

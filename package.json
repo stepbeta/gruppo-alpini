@@ -14,6 +14,8 @@
     "test:integration": "SUPABASE_INTEGRATION_REQUIRED=1 vitest run tests/integration",
     "test:coverage": "vitest run lib --coverage",
     "test:watch": "vitest",
+    "e2e:prepare": "node scripts/e2e-prepare.mjs",
+    "test:e2e": "npm run e2e:prepare && playwright test",
     "pretypecheck": "npm run privacy:meta",
     "typecheck": "tsc --noEmit",
     "privacy:meta": "node scripts/generate-privacy-meta.mjs",
@@ -32,6 +34,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",

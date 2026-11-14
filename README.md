@@ -122,6 +122,61 @@ banners, account-deletion anonymization, and the exact `42501`/`PGRST`/
 constraint error codes used by the Italian error mapping. Dormant purchase
 tables and component/route rendering are outside this suite.
 
+### End-to-end browser tests (Playwright)
+
+`tests/e2e/` exercises the real UI in Chromium against the **local** Supabase
+stack. The run is serial and priority-ordered: onboarding, deep links,
+events/RSVP (including creation with masked date/time fields), directory and
+roles, requests/counters, privacy/deletion, and theme. The Google OAuth journey
+is a documented `test.skip` because no local OAuth provider is available; the
+login button itself is checked by the onboarding spec.
+
+Known product defects found by the suite are recorded in
+[`docs/e2e-known-issues.md`](docs/e2e-known-issues.md) with reproduction steps.
+Open defects are marked with Playwright's `test.fail(...)`, so the suite stays
+green until they are fixed; remove the marker with the fix.
+
+Prerequisites:
+
+```bash
+# Docker must be running.
+npx playwright install chromium
+# On Linux, install the Chromium system libraries too (needs root):
+npx playwright install-deps chromium
+```
+
+The system libraries are `libnspr4`, `libnss3`, `libasound2t64`, and the other
+packages listed by `npx playwright install-deps chromium`. Without root, install
+them through your package manager yourself; the suite does not download or
+bundle them.
+
+Ports `3000` (Next.js), `54321`–`54324` (Supabase API, database, Studio, mail
+catcher) must be free. Migrations are applied from scratch by the command below,
+so a linked cloud project is never involved.
+
+Then use the single command that prepares the database and starts the app:
+
+```bash
+npm run test:e2e
+```
+
+`test:e2e` runs `e2e:prepare`, which starts the local Supabase stack if it is
+stopped and applies `npm run db:reset`. Playwright then launches a dedicated
+`next dev` server on port 3000 with the URL and keys read from `supabase
+status`; `.env.local` is never used. **The reset wipes local public tables and
+local auth users**, so do not point this suite at a stack whose data you need.
+
+Specs never use cloud credentials or production SMTP. The fixture users and
+events are prefixed with `E2E`, and global setup/teardown removes them. The
+database is reset once per full run, not between tests; specs run serially
+because they share fixtures and counters. Email confirmation is disabled in the
+local config; if it is enabled later, the onboarding spec confirms the test user
+through the Admin API instead of relying on production SMTP.
+
+Artifacts are written to `playwright-report/` (HTML report) and `test-results/`
+(traces and screenshots on failure); both are git-ignored. The E2E suite is not
+part of the CI workflow yet.
+
 ---
 
 ## Scripts
@@ -137,6 +192,8 @@ tables and component/route rendering are outside this suite.
 | `npm run test:unit`      | Unit tests only                                         |
 | `npm run test:integration` | Database/RLS suite; fails if the local stack is down  |
 | `npm run test:coverage`  | Unit tests with V8 coverage (no database integration)   |
+| `npm run test:e2e`       | Playwright E2E suite against the local Supabase stack   |
+| `npm run e2e:prepare`    | Start local Supabase if needed and reset the database   |
 | `npm run db:*`           | Supabase CLI helpers                                    |
 
 ---

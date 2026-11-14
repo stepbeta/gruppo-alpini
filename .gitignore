@@ -7,6 +7,9 @@
 
 # testing
 /coverage
+/playwright-report/
+/test-results/
+/tests/e2e/.auth/
 
 # next.js
 /.next/
@@ -37,3 +40,6 @@ next-env.d.ts
 
 # generated build metadata
 lib/generated/
+
+# local development notes
+gaps.md
