@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      react-next:
+        patterns: ["next", "react", "react-dom", "eslint-config-next"]
+      supabase:
+        patterns: ["@supabase/*"]
+    ignore:
+      # keep major bumps manual — Next 16 has breaking changes
+      - dependency-name: "next"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
