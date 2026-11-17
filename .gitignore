@@ -43,3 +43,6 @@ lib/generated/
 
 # local development notes
 gaps.md
+
+# local audit reports (future reference, never committed)
+/docs/audits/
