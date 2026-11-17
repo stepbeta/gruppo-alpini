@@ -70,6 +70,38 @@ The client Supabase singleton is created with `persistSession`, `autoRefreshToke
 
 The schema is delivered as 22 ordered migrations. The latest migration in this snapshot is `20261110104450_add_admin_organization_settings_write.sql`. Migrations are applied with the Supabase CLI; the Next.js deployment does not run them automatically, so a frontend release and its required database changes must be coordinated operationally[cite: 9].
 
+### 2.10 Vercel project configuration
+
+Deployment configuration is split by what the platform can express declaratively. Secrets are never part of the repository.
+
+Version-controlled:
+
+| File | Covers |
+| --- | --- |
+| `vercel.json` | `framework`, `regions: ["lhr1"]`, and `git.deploymentEnabled`. The function region is London because the Supabase project is `eu-west-2`; if the database region ever changes, change both together. |
+| `next.config.ts` → `headers()` | `Strict-Transport-Security`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, and a report-only Content Security Policy on every response. |
+| `.env.example` | The complete list of environment variable names, without values. |
+
+The CSP is **report-only** on purpose. Next.js emits inline bootstrap scripts, so an enforcing `script-src` needs nonces delivered through middleware, which forces every route to render dynamically and defeats `cacheComponents`. That trade-off is a deliberate future decision, not an oversight; until then the report-only policy surfaces violations without breaking the portal. HSTS omits `preload` for the same kind of reason: preloading is a one-way door that binds every current and future subdomain to HTTPS.
+
+Preview deployments are **disabled**: `git.deploymentEnabled` sets `"**": false` with `"main": true`. The double star matters — these are minimatch patterns and a single `*` does not cross `/`, so `"*": false` would leave every `feature/x`-style branch deploying. When a branch matches several rules, one `true` wins, which is what keeps `main` deploying.
+
+This is deliberate and temporary. Re-enabling previews requires a dedicated Supabase project first, plus the three public/server variable names scoped to the Preview environment. Without that separation a preview is an unauthenticated write path into production member data.
+
+Not expressible as code — set in the Vercel dashboard and verified by hand:
+
+| Setting | Required value | Why it matters |
+| --- | --- | --- |
+| Environment variables | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` scoped to Production and Preview, service key marked Sensitive | The absence of the `NEXT_PUBLIC_` prefix is the only mechanism keeping the service key out of client bundles; there is no per-variable "server-only" toggle. |
+| Deployment Protection | Vercel Authentication, preview deployments only | Preview URLs are guessable, and production must stay readable by members. |
+| Preview deployments | Disabled in `vercel.json`; re-enable only with a separate Supabase project | Otherwise every preview URL is an unauthenticated write path into member data. |
+| System environment variable access | Disabled | `autoExposeSystemEnvs` is currently on. Nothing in the code reads `VERCEL_*`, so it only widens the runtime surface. |
+| Production branch | `main` | Must be the branch protected by the GitHub ruleset. |
+| Domains | One canonical host, HTTPS, `www` → apex | Supabase Auth callbacks and redirect allow-lists match exact hosts. |
+| Firewall | Bot protection and attack challenge, if the plan allows | |
+
+Vercel API tokens are account-wide and cannot be scoped to a project or to read-only access. They must not be committed, stored in CI, or shared for auditing purposes.
+
 The test suite has two layers. Vitest unit tests run in a Node environment and cover Italian date/time parsing and masking (leap years, invalid dates and times, 24-hour boundaries, optional windows, all-day midnight stability), event deep links, event and attendance helpers, event-template validation, pagination normalization and PostgREST `range`/`ilike` composition, safe post-login redirects, theme and navigation helpers, profile enlistment-year validation, and Italian error mapping for authentication, events, requests, profiles, and organization settings. The Supabase data-access unit suites use a local chainable test double and assert the built request shape.
 
 `tests/integration/` adds API-level database/RLS coverage against the local Docker Supabase stack. One spec per domain exercises anonymous, unconsented, pending, rejected, approved, administrator, and service-role clients with real local JWTs; it creates `auth.users` fixtures through the admin API, resets public tables and fixture users between tests, and asserts grants, permissive/restrictive policies, triggers, constraints, deletion anonymization, and the `42501`/`PGRST` error codes. Credentials come from `supabase status` and the helper rejects non-loopback URLs, so `.env.local` production values are never used. Local `supabase/config.toml` sets `auto_expose_new_tables = false` so migration grants are enforced; the test bootstrap grants `service_role` the table access expected in production. `tests/e2e/` adds serial Chromium journeys against the same local stack (onboarding, deep links, events/RSVP, directory roles, requests/counters, privacy/deletion, theme), launched with `npm run test:e2e`; known defects are tracked in `docs/e2e-known-issues.md`, and the suite is not wired into CI yet. Route handlers outside those journeys remain uncovered. Coverage is generated with V8 and uploaded as a CI artifact, but there is no coverage threshold.

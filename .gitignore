@@ -46,3 +46,5 @@ gaps.md
 
 # local audit reports (future reference, never committed)
 /docs/audits/
+.env*
+!.env.example
