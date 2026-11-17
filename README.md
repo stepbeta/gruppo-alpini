@@ -213,3 +213,13 @@ part of the CI workflow yet.
 - **Profile/Events/Requests returns "permission denied" (42501)** — apply pending database migrations via `npm run db:push`.
 - **Delete account fails with server configuration message** — set `SUPABASE_SERVICE_ROLE_KEY` in `.env.local` or Vercel environment settings.
 - **CLI cannot link** — pass the project reference explicitly: `npx supabase link --project-ref <REF_ID>`.
+
+---
+
+## License and contributing
+
+This repository is published for transparency. It is **not** open source: all rights are reserved,
+see [`LICENSE`](LICENSE). The name and identity of the associazione are not licensed for reuse.
+
+Issues are welcome; pull requests are by prior agreement — see [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Security problems must be reported privately, not as public issues — see [`SECURITY.md`](SECURITY.md).
