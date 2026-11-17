@@ -2,6 +2,7 @@
   "name": "gruppo-alpini",
   "version": "0.1.0",
   "private": true,
+  "license": "UNLICENSED",
   "scripts": {
     "predev": "npm run privacy:meta",
     "dev": "next dev",
