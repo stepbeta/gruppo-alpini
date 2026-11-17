@@ -55,6 +55,8 @@ The static `/faq` help page is a deliberate exception to the two UI gates. `Sess
 
 The helpers are `SECURITY DEFINER` for a specific reason: a policy on `profiles` that queries `profiles` would otherwise recurse. Running the small lookup as the function owner bypasses RLS for that lookup while keeping the authorization decision explicit.
 
+Function privileges are a fourth surface, distinct from table grants. `create function` grants `EXECUTE` to `PUBLIC` by default, so every helper and trigger was reachable through `/rest/v1/rpc/<name>` as `anon` and `authenticated`. The `20261117210534_revoke_public_execute` migration revokes `EXECUTE` from `public`, `anon` and `authenticated` on the trigger functions (`handle_new_user`, `set_event_created_by`, `protect_profile_approval_status`, `protect_profile_admin_management`, `prevent_profile_admin_escalation`) and on `count_current_admins()`, which is only ever called from a `SECURITY DEFINER` trigger. Trigger invocation does not check `EXECUTE`, so behaviour is unchanged. The three policy helpers and `export_user_data(uuid)` keep their grant because policy expressions are evaluated as the caller; `rls_auto_enable()` is platform-owned and left alone. The same migration also replaces `using (true)` with `using (public.is_current_user_admin())` on the `organization_settings` UPDATE policy, so the visible row set matches the `WITH CHECK` clause instead of relying on it alone.
+
 Administrator role changes add a narrow trigger layer on `profiles`:
 
 - `profiles_prevent_admin_escalation` (pre-existing) rejects any change to `is_admin` unless the caller is an administrator or the service role. This remains the first barrier for non-admins.
